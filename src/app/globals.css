@@ -46,6 +46,36 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Core surfaces */
+  --color-gwc-navy: #00243c;
+  --color-gwc-navy-light: #003a5d;
+  --color-gwc-surface: #f8f9fa;
+  --color-gwc-muted-bg: #f3f4f5;
+  --color-gwc-border: #c2c7cf;
+
+  /* Text */
+  --color-gwc-text-heading: #00243c;
+  --color-gwc-text-body: #42474e;
+  --color-gwc-text-muted: #6b7280;
+
+  /* Accent (primary CTA - "Send Newsletter", "Create Newsletter") */
+  --color-gwc-gold: #fed65b;
+  --color-gwc-gold-text: #745c00;
+
+  /* Status pill backgrounds (campaign table) */
+  --color-gwc-status-draft-bg: #e1e3e4;
+  --color-gwc-status-sent-bg: #e6f4ea;
+  --color-gwc-status-scheduled-bg: #fed65b;
+
+  /* Radii */
+  --radius-gwc-card: 12px;
+  --radius-gwc-pill: 9999px;
+  --radius-gwc-input: 8px;
+
+  /* Fonts */
+  --font-gwc-heading: var(--font-gwc-heading), "Manrope", sans-serif;
+  --font-gwc-body: var(--font-gwc-body), "Be Vietnam Pro", sans-serif;
 }
 
 :root {
