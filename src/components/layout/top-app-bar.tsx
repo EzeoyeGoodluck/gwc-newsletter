@@ -20,6 +20,7 @@ export function TopAppBar({ onMenuClick }: TopAppBarProps) {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gwc-text-muted" />
         <input
           type="text"
+          aria-label="Search"
           placeholder="Search newsletters..."
           className={cn(
             "w-full bg-gwc-muted-bg border border-gwc-border/50 rounded-lg",
@@ -40,7 +41,7 @@ export function TopAppBar({ onMenuClick }: TopAppBarProps) {
           aria-label="Help"
           className="text-gwc-text-body hover:text-gwc-text-heading transition-colors"
         >
-          <HelpCircle className="h-5 w-5" />
+          <HelpCircle className="h-5 w-5" aria-hidden="true" />
         </button>
 
         <GoldButton label="Send Newsletter" icon={Send} />
