@@ -1,10 +1,21 @@
-import { Search, Bell, HelpCircle, Send } from "lucide-react";
+import { Menu, Search, Bell, HelpCircle, Send } from "lucide-react";
 import { GoldButton } from "@/components/ui/gold-button";
 import { cn } from "@/lib/utils";
 
-export function TopAppBar() {
+interface TopAppBarProps {
+  onMenuClick?: () => void;
+}
+
+export function TopAppBar({ onMenuClick }: TopAppBarProps) {
   return (
-    <header className="flex items-center justify-between gap-6 px-8 py-4 bg-gwc-surface/80 backdrop-blur-md border-b border-gwc-border/30">
+    <header className="flex items-center justify-between gap-6 px-4 md:px-8 py-4 bg-gwc-surface/80 backdrop-blur-md border-b border-gwc-border/30">
+      <button
+        onClick={onMenuClick}
+        className="md:hidden p-2 -ml-2 text-gwc-text-muted hover:text-gwc-text"
+        aria-label="Open navigation menu"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
       <div className="relative flex-1 max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gwc-text-muted" />
         <input
