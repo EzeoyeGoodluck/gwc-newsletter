@@ -1,4 +1,4 @@
-import { FileEdit, MailCheck, Users, Send, SendHorizontal } from "lucide-react";
+import { FileEdit, MailCheck, Users, SendHorizontal } from "lucide-react";
 import { KPICard } from "@/components/dashboard/kpi-card";
 
 export default function DashboardPage() {
