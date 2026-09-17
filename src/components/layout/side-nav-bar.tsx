@@ -15,8 +15,6 @@ import {
 import { GoldButton } from "@/components/ui/gold-button";
 import { cn } from "cn";
 import { useState } from "react";
-import { spawn } from "child_process";
-import { Span } from "next/dist/trace";
 import { useBranding } from "@/lib/branding-context";
 
 const mainNavItems = [
