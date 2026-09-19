@@ -1,28 +1,42 @@
 import { cn } from "@/lib/utils";
+import { CampaignStatus } from "@/lib/types/dashboard";
 
-type CampaignStatus = "draft" | "scheduled" | "sent";
-
-const statusStyles: Record<CampaignStatus, string> = {
-  draft: "bg-gwc-status-draft-bg text-gwc-text-body",
-  sent: "bg-gwc-status-sent-bg text-green-800",
-  scheduled: "bg-gwc-status-gold-bg text-gwc-gold-text",
+const statusConfig: Record<
+  CampaignStatus,
+  { label: string; bg: string; text: string; dot: string }
+> = {
+  draft: {
+    label: "Draft",
+    bg: "bg-gray-200",
+    text: "text-gwc-text-body",
+    dot: "bg-gray-500",
+  },
+  scheduled: {
+    label: "Scheduled",
+    bg: "bg-gwc-gold/30",
+    text: "text-gwc-gold-text",
+    dot: "bg-gwc-gold-text",
+  },
+  sent: {
+    label: "Sent",
+    bg: "bg-green-100",
+    text: "text-green-700",
+    dot: "bg-green-700",
+  },
 };
 
-const statusLabels: Record<CampaignStatus, string> = {
-  draft: "Draft",
-  sent: "Sent",
-  scheduled: "Scheduled",
-};
-
-export function StatusPill({ status }: { status: CampaignStatus }) {
+export function StatusBadge({ status }: { status: CampaignStatus }) {
+  const config = statusConfig[status];
   return (
     <span
       className={cn(
-        "inline-flex items-center px-3 py-1 rounded-full text-sm font-gwc-heading font-medium",
-        statusStyles[status]
+        "inline-flex items-center gap-1.5 text-xs font-gwc-heading px-3 py-1 rounded-full",
+        config.bg,
+        config.text
       )}
     >
-      {statusLabels[status]}
+      <span className={cn("h-2 w-2 rounded-full", config.dot)} />
+      {config.label}
     </span>
   );
 }

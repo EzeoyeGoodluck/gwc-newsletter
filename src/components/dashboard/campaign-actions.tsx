@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreVertical } from "lucide-react";
+import { ChevronDown, MoreVertical } from "lucide-react";
 import { Campaign, CampaignStatus } from "@/lib/types/dashboard";
 import { cn } from "@/lib/utils";
 
@@ -21,16 +21,13 @@ export function CampaignActions({ campaign, onAction }: CampaignActionsProps) {
   const actions = actionsByStatus[campaign.status];
 
   return (
-    <div className="relative">
+    <div className="relative flex justify-end">
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-label={`Actions for ${campaign.title}`}
-        className="p-2 rounded-md hover:bg-gwc-muted-bg cursor-pointer"
+        className="flex items-center gap-1 bg-gwc-navy text-white rounded-lg px-6 py-3 text-sm font-gwc-heading font-semibold cursor-pointer hover:brightness-110"
       >
-        <MoreVertical
-          className="h-4 w-4 text-gwc-text-muted"
-          aria-hidden="true"
-        />
+        Select
+        <ChevronDown className="h-3.5 w-3.5" />
       </button>
       {open && (
         <>

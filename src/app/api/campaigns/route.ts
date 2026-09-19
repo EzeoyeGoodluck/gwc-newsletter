@@ -76,28 +76,19 @@ const ALL_CAMPAIGNS: Campaign[] = [
   },
 ];
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
-  const categories =
-    searchParams.get("categories")?.split(",").filter(Boolean) ?? [];
-  const search = searchParams.get("search")?.toLowerCase() ?? "";
-  const page = Number(searchParams.get("page") ?? "1");
+  const category = searchParams.get("category");
+  const page = parseInt(searchParams.get("page") ?? "1", 10);
   const pageSize = 3;
 
   let filtered = ALL_CAMPAIGNS;
-
-  if (status && status !== "all") {
+  if (status && status !== "all")
     filtered = filtered.filter((c) => c.status === status);
-  }
-  if (categories.length > 0) {
-    filtered = filtered.filter((c) => categories.includes(c.category));
-  }
-  if (search) {
-    filtered = filtered.filter((c) => c.title.toLowerCase().includes(search));
-  }
+  if (category && category !== "all")
+    filtered = filtered.filter((c) => c.category === category);
 
-  const total = filtered.length;
   const start = (page - 1) * pageSize;
   const paged = filtered.slice(start, start + pageSize);
 
@@ -105,11 +96,12 @@ export async function GET(request: NextRequest) {
     campaigns: paged.map((c) => ({
       id: c.id,
       title: c.title,
+      campaignId: c.campaignId,
       status: c.status,
       category: c.category,
       lastEdited: c.lastEdited,
     })),
-    total,
+    total: filtered.length,
     page,
     pageSize,
   });

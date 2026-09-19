@@ -2,12 +2,12 @@ export type CampaignStatus = "draft" | "scheduled" | "sent";
 
 export interface Campaign {
   id: string;
+  campaignId: string;
   title: string;
   status: CampaignStatus;
   category: string;
   lastEdited: string;
 }
-
 export interface DashboardMetrics {
   activeDrafts: number;
   sentThisMonth: number;
