@@ -1,19 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ChevronDown, Search, Plus } from "lucide-react";
-
+import { useState } from "react";
+import { ChevronDown, Plus } from "lucide-react";
 import { CategoryTag } from "@/components/dashboard/category-tag";
-import { MemberStatusBadge } from "@/components/members/member-status-badge";
+
+export type MemberStatus = "active" | "inactive" | "visitor";
 
 export interface Member {
   id: string;
+  memberId: string;
   name: string;
   avatarUrl?: string;
-  role: string;
-  groups: string[];
-  status: "active" | "inactive" | "pending";
-  joinedDate: string;
+  email: string;
+  phone?: string;
+  categories: string[];
+  status: MemberStatus;
 }
 
 interface MembersDirectoryProps {
@@ -23,7 +24,24 @@ interface MembersDirectoryProps {
   pageSize: number;
   onPageChange: (page: number) => void;
   onAddMember: () => void;
+  onCreateCategory: () => void;
   onAction: (action: string, member: Member) => void;
+}
+
+const statusConfig: Record<MemberStatus, { label: string; bg: string; text: string; dot: string }> = {
+  active: { label: "Active", bg: "bg-gwc-navy/5", text: "text-gwc-navy", dot: "bg-gwc-navy" },
+  inactive: { label: "Inactive", bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-500" },
+  visitor: { label: "Visitor", bg: "bg-gray-200", text: "text-gray-600", dot: "bg-gray-500" },
+};
+
+function StatusPill({ status }: { status: MemberStatus }) {
+  const config = statusConfig[status];
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full ${config.bg} ${config.text}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${config.dot}`} />
+      {config.label}
+    </span>
+  );
 }
 
 export function MembersDirectory({
@@ -33,14 +51,15 @@ export function MembersDirectory({
   pageSize,
   onPageChange,
   onAddMember,
+  onCreateCategory,
   onAction,
 }: MembersDirectoryProps) {
-  const totalPages = Math.ceil(total / pageSize);
-  const start = (page - 1) * pageSize + 1;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-8">
       <div className="flex items-start justify-between gap-6 flex-wrap">
         <div className="flex flex-col gap-1">
           <h1 className="text-[32px] font-semibold text-gwc-navy tracking-tight">
@@ -60,30 +79,40 @@ export function MembersDirectory({
       </div>
 
       <div className="bg-white rounded-xl border border-gwc-border/20 shadow-sm">
-        <div className="flex items-center justify-between gap-4 px-6 py-6 border-b border-gwc-border/20 flex-wrap">
+        <div className="flex items-center justify-between gap-4 px-6 py-6 flex-wrap">
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 bg-gwc-muted-bg border border-gwc-border/50 rounded-lg px-6 py-3 text-sm text-gwc-text-body">
-              All Roles
+            <div className="flex items-center gap-2 bg-gwc-muted-bg border border-gwc-border/50 rounded-lg px-6 py-3 text-sm text-gwc-text-body cursor-pointer">
+              All Members
               <ChevronDown className="h-3.5 w-3.5" />
             </div>
-            <div className="flex items-center gap-2 bg-gwc-muted-bg border border-gwc-border/50 rounded-lg px-6 py-3 text-sm text-gwc-text-body">
-              All Groups
+            <span className="text-sm text-gwc-text-muted">Category:</span>
+            <div className="flex items-center gap-2 bg-white border border-gwc-border rounded-lg px-6 py-3 text-sm text-gwc-text-body cursor-pointer">
+              All Categories
               <ChevronDown className="h-3.5 w-3.5" />
             </div>
-            <div className="flex items-center gap-1 bg-gwc-muted-bg border border-gwc-border/50 rounded-lg px-6 py-3 text-sm text-gwc-text-body">
-              All Statuses
-              <ChevronDown className="h-3.5 w-3.5" />
-            </div>
-          </div>
-          <div className="flex items-center gap-1 bg-gwc-muted-bg border border-gwc-border/50 rounded-lg p-1">
             <button
-              className="rounded-md bg-white shadow-sm p-2"
-              aria-label="Grid view"
+              onClick={onCreateCategory}
+              className="flex items-center gap-1.5 bg-gwc-muted-bg border border-gwc-border/50 rounded-lg px-4 py-3 text-sm font-medium text-gwc-text-body hover:bg-gwc-border/10"
             >
-              <div className="h-[18px] w-[18px]" />
+              <Plus className="h-3.5 w-3.5" />
+              Create Category
             </button>
-            <button className="rounded-md p-2" aria-label="List view">
-              <div className="h-[18px] w-[18px]" />
+          </div>
+          <div className="flex items-center gap-1 bg-white border border-gwc-border rounded-lg p-1">
+            <button className="rounded-md bg-gwc-muted-bg p-2" aria-label="List view">
+              <div className="h-[18px] w-[18px] flex flex-col gap-[3px] justify-center">
+                <div className="h-[2px] w-full bg-gwc-text-body rounded-full" />
+                <div className="h-[2px] w-full bg-gwc-text-body rounded-full" />
+                <div className="h-[2px] w-full bg-gwc-text-body rounded-full" />
+              </div>
+            </button>
+            <button className="rounded-md p-2" aria-label="Grid view">
+              <div className="h-[18px] w-[18px] grid grid-cols-2 gap-[2px]">
+                <div className="bg-gwc-text-muted rounded-sm" />
+                <div className="bg-gwc-text-muted rounded-sm" />
+                <div className="bg-gwc-text-muted rounded-sm" />
+                <div className="bg-gwc-text-muted rounded-sm" />
+              </div>
             </button>
           </div>
         </div>
@@ -93,70 +122,70 @@ export function MembersDirectory({
             <thead>
               <tr className="bg-gwc-muted-bg/50 border-b border-gwc-border/20 text-left text-gwc-text-muted">
                 <th className="py-4 px-6 font-semibold w-16">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gwc-border"
-                  />
+                  <input type="checkbox" className="rounded border-gwc-border" />
                 </th>
-                <th className="py-4 px-6 font-semibold">Name</th>
-                <th className="py-4 px-6 font-semibold">Role</th>
-                <th className="py-4 px-6 font-semibold">Groups</th>
+                <th className="py-4 px-6 font-semibold">Member Details</th>
+                <th className="py-4 px-6 font-semibold">Contact</th>
                 <th className="py-4 px-6 font-semibold">Status</th>
+                <th className="py-4 px-6 font-semibold">Categories</th>
                 <th className="py-4 px-6 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {members.map((member) => (
-                <tr
-                  key={member.id}
-                  className="border-b border-gwc-border/10 hover:bg-gwc-muted-bg/30"
-                >
-                  <td className="py-4 px-6">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gwc-border"
-                    />
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-gwc-navy/10 flex items-center justify-center text-xs font-semibold text-gwc-navy overflow-hidden">
-                        {member.avatarUrl ? (
-                          <img
-                            src={member.avatarUrl}
-                            alt={member.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          member.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .slice(0, 2)
-                        )}
-                      </div>
-                      <span className="font-medium text-gwc-text-heading">
-                        {member.name}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6 text-gwc-text-body">
-                    {member.role}
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="flex flex-wrap gap-1.5">
-                      {member.groups.map((g) => (
-                        <CategoryTag key={g} category={g} />
-                      ))}
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    <MemberStatusBadge status={member.status} />
-                  </td>
-                  <td className="py-4 px-6 text-right">
-                    <MemberActions member={member} onAction={onAction} />
+              {members.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 px-6 text-center text-gwc-text-muted">
+                    No members found.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                members.map((member) => (
+                  <tr
+                    key={member.id}
+                    className="border-b border-gwc-border/10 hover:bg-gwc-muted-bg/30"
+                  >
+                    <td className="py-4 px-6">
+                      <input type="checkbox" className="rounded border-gwc-border" />
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gwc-text-body overflow-hidden shrink-0">
+                          {member.avatarUrl ? (
+                            <img src={member.avatarUrl} alt={member.name} className="h-full w-full object-cover" />
+                          ) : (
+                            member.name.split(" ").map((n) => n[0]).join("").slice(0, 2)
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gwc-text-heading leading-tight">{member.name}</p>
+                          <p className="text-xs text-gwc-text-muted/70 mt-0.5">ID: {member.memberId}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <p className="text-gwc-text-heading">{member.email}</p>
+                      <p className="text-gwc-text-muted text-[13px] mt-0.5">{member.phone ?? "--"}</p>
+                    </td>
+                    <td className="py-4 px-6">
+                      <StatusPill status={member.status} />
+                    </td>
+                    <td className="py-4 px-6">
+                      {member.categories.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {member.categories.map((c) => (
+                            <CategoryTag key={c} category={c} />
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gwc-text-muted italic text-sm">None</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <MemberActions member={member} onAction={onAction} />
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -173,10 +202,7 @@ export function MembersDirectory({
             >
               Previous
             </button>
-            {Array.from(
-              { length: Math.min(totalPages, 3) },
-              (_, i) => i + 1
-            ).map((p) => (
+            {Array.from({ length: Math.min(totalPages, 3) }, (_, i) => i + 1).map((p) => (
               <button
                 key={p}
                 onClick={() => onPageChange(p)}
@@ -189,6 +215,7 @@ export function MembersDirectory({
                 {p}
               </button>
             ))}
+            {totalPages > 3 && <span className="text-sm text-gwc-text-muted px-1">...</span>}
             <button
               onClick={() => onPageChange(Math.min(totalPages, page + 1))}
               disabled={page === totalPages}
@@ -203,6 +230,11 @@ export function MembersDirectory({
   );
 }
 
+
+
+
+
+
 function MemberActions({
   member,
   onAction,
@@ -213,8 +245,11 @@ function MemberActions({
   const [open, setOpen] = useState(false);
   const actions = [
     "View Profile",
-    "Edit Details",
-    "Assign Administrative Role",
+    "Edit Member",
+    "Manage Categories",
+    "Send Direct Email",
+    "Assign Admin",
+    "Privacy & GDPR",
     "Remove Member",
   ];
 
@@ -222,7 +257,7 @@ function MemberActions({
     <div className="relative flex justify-end">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 bg-gwc-navy text-white rounded-lg px-6 py-3 text-sm font-semibold hover:brightness-110"
+        className="flex items-center gap-1 bg-gwc-navy text-white rounded-lg px-4 py-2 text-sm font-medium hover:brightness-110"
       >
         Select
         <ChevronDown className="h-3.5 w-3.5" />
