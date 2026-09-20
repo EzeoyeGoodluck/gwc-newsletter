@@ -22,41 +22,78 @@ interface MembersDirectoryProps {
   total: number;
   page: number;
   pageSize: number;
+  roleFilter: string;
+  categoryFilter: string;
+  availableCategories: string[];
   onPageChange: (page: number) => void;
+  onRoleFilterChange: (role: string) => void;
+  onCategoryFilterChange: (category: string) => void;
   onAddMember: () => void;
   onCreateCategory: () => void;
   onAction: (action: string, member: Member) => void;
 }
 
-const statusConfig: Record<MemberStatus, { label: string; bg: string; text: string; dot: string }> = {
-  active: { label: "Active", bg: "bg-gwc-navy/5", text: "text-gwc-navy", dot: "bg-gwc-navy" },
-  inactive: { label: "Inactive", bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-500" },
-  visitor: { label: "Visitor", bg: "bg-gray-200", text: "text-gray-600", dot: "bg-gray-500" },
+const statusConfig: Record<
+  MemberStatus,
+  { label: string; bg: string; text: string; dot: string }
+> = {
+  active: {
+    label: "Active",
+    bg: "bg-gwc-navy/5",
+    text: "text-gwc-navy",
+    dot: "bg-gwc-navy",
+  },
+  inactive: {
+    label: "Inactive",
+    bg: "bg-gray-100",
+    text: "text-gray-600",
+    dot: "bg-gray-500",
+  },
+  visitor: {
+    label: "Visitor",
+    bg: "bg-gray-200",
+    text: "text-gray-600",
+    dot: "bg-gray-500",
+  },
 };
 
 function StatusPill({ status }: { status: MemberStatus }) {
   const config = statusConfig[status];
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full ${config.bg} ${config.text}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full ${config.bg} ${config.text}`}
+    >
       <span className={`h-1.5 w-1.5 rounded-full ${config.dot}`} />
       {config.label}
     </span>
   );
 }
 
+const ROLE_OPTIONS = ["All Members", "Active", "Inactive", "Visitor"];
+
 export function MembersDirectory({
   members,
   total,
   page,
   pageSize,
+  roleFilter,
+  categoryFilter,
+  availableCategories,
   onPageChange,
+  onRoleFilterChange,
+  onCategoryFilterChange,
   onAddMember,
   onCreateCategory,
   onAction,
 }: MembersDirectoryProps) {
+  const [rolesOpen, setRolesOpen] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
+
+  const categoryOptions = ["All Categories", ...availableCategories];
 
   return (
     <div className="flex flex-col gap-8">
@@ -71,7 +108,7 @@ export function MembersDirectory({
         </div>
         <button
           onClick={onAddMember}
-          className="flex items-center gap-2 bg-gwc-navy text-white rounded-lg px-6 py-3 text-sm font-semibold shadow-sm hover:brightness-110"
+          className="flex items-center gap-2 bg-gwc-navy text-white rounded-lg px-6 py-3 text-sm font-semibold shadow-sm cursor-pointer hover:brightness-110"
         >
           <Plus className="h-4 w-4" />
           Add New Member
@@ -81,32 +118,102 @@ export function MembersDirectory({
       <div className="bg-white rounded-xl border border-gwc-border/20 shadow-sm">
         <div className="flex items-center justify-between gap-4 px-6 py-6 flex-wrap">
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 bg-gwc-muted-bg border border-gwc-border/50 rounded-lg px-6 py-3 text-sm text-gwc-text-body cursor-pointer">
-              All Members
-              <ChevronDown className="h-3.5 w-3.5" />
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setRolesOpen((v) => !v);
+                  setCategoriesOpen(false);
+                }}
+                className="flex items-center gap-2 bg-gwc-muted-bg border border-gwc-border/50 rounded-lg px-6 py-3 text-sm text-gwc-text-body cursor-pointer hover:bg-gwc-border/10 transition-colors"
+              >
+                {roleFilter}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+              {rolesOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setRolesOpen(false)}
+                  />
+                  <div className="absolute left-0 top-full mt-1 z-20 w-48 bg-white rounded-md shadow-lg border border-gwc-border/20 py-1">
+                    {ROLE_OPTIONS.map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          onRoleFilterChange(option);
+                          setRolesOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-gwc-text-body hover:bg-gwc-muted-bg cursor-pointer"
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
+
             <span className="text-sm text-gwc-text-muted">Category:</span>
-            <div className="flex items-center gap-2 bg-white border border-gwc-border rounded-lg px-6 py-3 text-sm text-gwc-text-body cursor-pointer">
-              All Categories
-              <ChevronDown className="h-3.5 w-3.5" />
+
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setCategoriesOpen((v) => !v);
+                  setRolesOpen(false);
+                }}
+                className="flex items-center gap-2 bg-white border border-gwc-border rounded-lg px-6 py-3 text-sm text-gwc-text-body cursor-pointer hover:bg-gwc-muted-bg transition-colors"
+              >
+                {categoryFilter}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+              {categoriesOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setCategoriesOpen(false)}
+                  />
+                  <div className="absolute left-0 top-full mt-1 z-20 w-48 bg-white rounded-md shadow-lg border border-gwc-border/20 py-1 max-h-64 overflow-y-auto">
+                    {categoryOptions.map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          onCategoryFilterChange(option);
+                          setCategoriesOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-gwc-text-body hover:bg-gwc-muted-bg cursor-pointer"
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
+
             <button
               onClick={onCreateCategory}
-              className="flex items-center gap-1.5 bg-gwc-muted-bg border border-gwc-border/50 rounded-lg px-4 py-3 text-sm font-medium text-gwc-text-body hover:bg-gwc-border/10"
+              className="flex items-center gap-1.5 bg-gwc-muted-bg border border-gwc-border/50 rounded-lg px-4 py-3 text-sm font-medium text-gwc-text-body cursor-pointer hover:bg-gwc-border/10 transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
               Create Category
             </button>
           </div>
+
           <div className="flex items-center gap-1 bg-white border border-gwc-border rounded-lg p-1">
-            <button className="rounded-md bg-gwc-muted-bg p-2" aria-label="List view">
+            <button
+              className="rounded-md bg-gwc-muted-bg p-2 cursor-pointer"
+              aria-label="List view"
+            >
               <div className="h-[18px] w-[18px] flex flex-col gap-[3px] justify-center">
                 <div className="h-[2px] w-full bg-gwc-text-body rounded-full" />
                 <div className="h-[2px] w-full bg-gwc-text-body rounded-full" />
                 <div className="h-[2px] w-full bg-gwc-text-body rounded-full" />
               </div>
             </button>
-            <button className="rounded-md p-2" aria-label="Grid view">
+            <button
+              className="rounded-md p-2 cursor-pointer hover:bg-gwc-muted-bg"
+              aria-label="Grid view"
+            >
               <div className="h-[18px] w-[18px] grid grid-cols-2 gap-[2px]">
                 <div className="bg-gwc-text-muted rounded-sm" />
                 <div className="bg-gwc-text-muted rounded-sm" />
@@ -122,7 +229,10 @@ export function MembersDirectory({
             <thead>
               <tr className="bg-gwc-muted-bg/50 border-b border-gwc-border/20 text-left text-gwc-text-muted">
                 <th className="py-4 px-6 font-semibold w-16">
-                  <input type="checkbox" className="rounded border-gwc-border" />
+                  <input
+                    type="checkbox"
+                    className="rounded border-gwc-border cursor-pointer"
+                  />
                 </th>
                 <th className="py-4 px-6 font-semibold">Member Details</th>
                 <th className="py-4 px-6 font-semibold">Contact</th>
@@ -134,7 +244,10 @@ export function MembersDirectory({
             <tbody>
               {members.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 px-6 text-center text-gwc-text-muted">
+                  <td
+                    colSpan={6}
+                    className="py-12 px-6 text-center text-gwc-text-muted"
+                  >
                     No members found.
                   </td>
                 </tr>
@@ -145,26 +258,43 @@ export function MembersDirectory({
                     className="border-b border-gwc-border/10 hover:bg-gwc-muted-bg/30"
                   >
                     <td className="py-4 px-6">
-                      <input type="checkbox" className="rounded border-gwc-border" />
+                      <input
+                        type="checkbox"
+                        className="rounded border-gwc-border cursor-pointer"
+                      />
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gwc-text-body overflow-hidden shrink-0">
                           {member.avatarUrl ? (
-                            <img src={member.avatarUrl} alt={member.name} className="h-full w-full object-cover" />
+                            <img
+                              src={member.avatarUrl}
+                              alt={member.name}
+                              className="h-full w-full object-cover"
+                            />
                           ) : (
-                            member.name.split(" ").map((n) => n[0]).join("").slice(0, 2)
+                            member.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .slice(0, 2)
                           )}
                         </div>
                         <div>
-                          <p className="font-medium text-gwc-text-heading leading-tight">{member.name}</p>
-                          <p className="text-xs text-gwc-text-muted/70 mt-0.5">ID: {member.memberId}</p>
+                          <p className="font-medium text-gwc-text-heading leading-tight">
+                            {member.name}
+                          </p>
+                          <p className="text-xs text-gwc-text-muted/70 mt-0.5">
+                            ID: {member.memberId}
+                          </p>
                         </div>
                       </div>
                     </td>
                     <td className="py-4 px-6">
                       <p className="text-gwc-text-heading">{member.email}</p>
-                      <p className="text-gwc-text-muted text-[13px] mt-0.5">{member.phone ?? "--"}</p>
+                      <p className="text-gwc-text-muted text-[13px] mt-0.5">
+                        {member.phone ?? "--"}
+                      </p>
                     </td>
                     <td className="py-4 px-6">
                       <StatusPill status={member.status} />
@@ -177,7 +307,9 @@ export function MembersDirectory({
                           ))}
                         </div>
                       ) : (
-                        <span className="text-gwc-text-muted italic text-sm">None</span>
+                        <span className="text-gwc-text-muted italic text-sm">
+                          None
+                        </span>
                       )}
                     </td>
                     <td className="py-4 px-6 text-right">
@@ -198,15 +330,18 @@ export function MembersDirectory({
             <button
               onClick={() => onPageChange(Math.max(1, page - 1))}
               disabled={page === 1}
-              className="text-sm font-medium px-4 py-2 rounded-md border border-gwc-border/50 text-gwc-text-body hover:bg-gwc-muted-bg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-sm font-medium px-4 py-2 rounded-md border border-gwc-border/50 text-gwc-text-body cursor-pointer hover:bg-gwc-muted-bg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Previous
             </button>
-            {Array.from({ length: Math.min(totalPages, 3) }, (_, i) => i + 1).map((p) => (
+            {Array.from(
+              { length: Math.min(totalPages, 3) },
+              (_, i) => i + 1
+            ).map((p) => (
               <button
                 key={p}
                 onClick={() => onPageChange(p)}
-                className={`text-sm font-medium h-9 w-9 rounded-md ${
+                className={`text-sm font-medium h-9 w-9 rounded-md cursor-pointer ${
                   p === page
                     ? "bg-gwc-navy text-white shadow-sm"
                     : "border border-gwc-border/50 text-gwc-text-body hover:bg-gwc-muted-bg"
@@ -215,11 +350,13 @@ export function MembersDirectory({
                 {p}
               </button>
             ))}
-            {totalPages > 3 && <span className="text-sm text-gwc-text-muted px-1">...</span>}
+            {totalPages > 3 && (
+              <span className="text-sm text-gwc-text-muted px-1">...</span>
+            )}
             <button
               onClick={() => onPageChange(Math.min(totalPages, page + 1))}
               disabled={page === totalPages}
-              className="text-sm font-medium px-4 py-2 rounded-md border border-gwc-border/50 text-gwc-text-body hover:bg-gwc-muted-bg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-sm font-medium px-4 py-2 rounded-md border border-gwc-border/50 text-gwc-text-body cursor-pointer hover:bg-gwc-muted-bg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Next
             </button>
@@ -229,11 +366,6 @@ export function MembersDirectory({
     </div>
   );
 }
-
-
-
-
-
 
 function MemberActions({
   member,
@@ -257,7 +389,7 @@ function MemberActions({
     <div className="relative flex justify-end">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 bg-gwc-navy text-white rounded-lg px-4 py-2 text-sm font-medium hover:brightness-110"
+        className="flex items-center gap-1 bg-gwc-navy text-white rounded-lg px-4 py-2 text-sm font-medium cursor-pointer hover:brightness-110"
       >
         Select
         <ChevronDown className="h-3.5 w-3.5" />
@@ -273,7 +405,7 @@ function MemberActions({
                   onAction(action, member);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-3 py-2 text-sm text-gwc-text-body hover:bg-gwc-muted-bg ${
+                className={`w-full text-left px-3 py-2 text-sm text-gwc-text-body hover:bg-gwc-muted-bg cursor-pointer ${
                   action === "Remove Member" ? "text-red-600" : ""
                 }`}
               >

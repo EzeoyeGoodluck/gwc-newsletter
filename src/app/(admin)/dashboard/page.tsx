@@ -12,7 +12,11 @@ import {
   CampaignsErrorState,
 } from "@/components/dashboard/campaign-empty-states";
 import { fetchDashboardMetrics, fetchCampaigns } from "@/lib/api/dashboard";
-import { Campaign, DashboardMetrics, CampaignStatus } from "@/lib/types/dashboard";
+import {
+  Campaign,
+  DashboardMetrics,
+  CampaignStatus,
+} from "@/lib/types/dashboard";
 
 const PAGE_SIZE = 3;
 
@@ -30,7 +34,8 @@ export default function DashboardPage() {
   const [campaignsError, setCampaignsError] = useState(false);
   const [hasEverLoaded, setHasEverLoaded] = useState(false);
 
-  const status = (searchParams.get("status") as CampaignStatus | "all") ?? "all";
+  const status =
+    (searchParams.get("status") as CampaignStatus | "all") ?? "all";
   const categoriesParam = searchParams.get("categories") ?? "";
   const categories = categoriesParam ? categoriesParam.split(",") : [];
   const search = searchParams.get("search") ?? "";
@@ -69,7 +74,12 @@ export default function DashboardPage() {
     setCampaignsLoading(true);
     setCampaignsError(false);
     try {
-      const data = await fetchCampaigns({ status, categories: categoriesParam ? categoriesParam.split(",") : [], search, page });
+      const data = await fetchCampaigns({
+        status,
+        categories: categoriesParam ? categoriesParam.split(",") : [],
+        search,
+        page,
+      });
       setCampaigns(data.campaigns);
       setTotalCampaigns(data.total);
       setHasEverLoaded(true);
@@ -93,9 +103,15 @@ export default function DashboardPage() {
 
   const hasFilters = status !== "all" || categories.length > 0 || search !== "";
   const showNoCampaignsEmpty =
-    !campaignsLoading && !campaignsError && campaigns.length === 0 && !hasFilters;
+    !campaignsLoading &&
+    !campaignsError &&
+    campaigns.length === 0 &&
+    !hasFilters;
   const showNoMatchesEmpty =
-    !campaignsLoading && !campaignsError && campaigns.length === 0 && hasFilters;
+    !campaignsLoading &&
+    !campaignsError &&
+    campaigns.length === 0 &&
+    hasFilters;
 
   return (
     <div>
@@ -132,13 +148,18 @@ export default function DashboardPage() {
           />
         </div>
 
-        {campaignsError && !hasEverLoaded && <CampaignsErrorState onRetry={loadCampaigns} />}
+        {campaignsError && !hasEverLoaded && (
+          <CampaignsErrorState onRetry={loadCampaigns} />
+        )}
         {campaignsError && hasEverLoaded && (
           <>
             <p className="text-sm text-red-600 px-6 pt-4">
               Couldn&apos;t refresh campaigns. Showing last loaded data.
             </p>
-            <CampaignsTable campaigns={campaigns} onAction={(action, c) => console.log(action, c)} />
+            <CampaignsTable
+              campaigns={campaigns}
+              onAction={(action, c) => console.log(action, c)}
+            />
           </>
         )}
         {!campaignsError && showNoCampaignsEmpty && (
@@ -149,7 +170,10 @@ export default function DashboardPage() {
         )}
         {!campaignsError && !showNoCampaignsEmpty && !showNoMatchesEmpty && (
           <>
-            <CampaignsTable campaigns={campaigns} onAction={(action, c) => console.log(action, c)} />
+            <CampaignsTable
+              campaigns={campaigns}
+              onAction={(action, c) => console.log(action, c)}
+            />
             <CampaignsPagination
               page={page}
               pageSize={PAGE_SIZE}

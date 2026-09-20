@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   MembersDirectory,
   Member,
@@ -57,13 +57,41 @@ export default function MembersPage() {
     { name: "Elders Council", description: "" },
   ]);
   const [page, setPage] = useState(1);
+  const [roleFilter, setRoleFilter] = useState("All Members");
+  const [categoryFilter, setCategoryFilter] = useState("All Categories");
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [viewMode, setViewMode] = useState<"edit" | "view">("edit");
 
   const pageSize = 3;
-  const total = 428;
+
+  const filteredMembers = useMemo(() => {
+    return members.filter((m) => {
+      const roleMatch =
+        roleFilter === "All Members" ||
+        m.status.toLowerCase() === roleFilter.toLowerCase();
+      const categoryMatch =
+        categoryFilter === "All Categories" ||
+        m.categories.includes(categoryFilter);
+      return roleMatch && categoryMatch;
+    });
+  }, [members, roleFilter, categoryFilter]);
+
+  const paginatedMembers = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredMembers.slice(start, start + pageSize);
+  }, [filteredMembers, page, pageSize]);
+
+  const handleRoleFilterChange = (role: string) => {
+    setRoleFilter(role);
+    setPage(1);
+  };
+
+  const handleCategoryFilterChange = (category: string) => {
+    setCategoryFilter(category);
+    setPage(1);
+  };
 
   const handleAddMember = (newMember: Omit<Member, "id" | "memberId">) => {
     const member: Member = {
@@ -155,11 +183,16 @@ export default function MembersPage() {
   return (
     <>
       <MembersDirectory
-        members={members}
-        total={total}
+        members={paginatedMembers}
+        total={filteredMembers.length}
         page={page}
         pageSize={pageSize}
+        roleFilter={roleFilter}
+        categoryFilter={categoryFilter}
+        availableCategories={categories.map((c) => c.name)}
         onPageChange={setPage}
+        onRoleFilterChange={handleRoleFilterChange}
+        onCategoryFilterChange={handleCategoryFilterChange}
         onAddMember={() => setAddMemberOpen(true)}
         onCreateCategory={() => setCreateCategoryOpen(true)}
         onAction={handleMemberAction}
