@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import {
   Plus,
@@ -30,9 +30,11 @@ const secondaryNavItems = [
 ];
 
 export function SideNavBar() {
+  const router = useRouter();
   const pathname = usePathname();
   const [logoError, setLogoError] = useState(false);
   const { branding } = useBranding();
+
   return (
     <aside
       aria-label="Main navigation"
@@ -70,6 +72,7 @@ export function SideNavBar() {
           label="Create Newsletter"
           icon={Plus}
           className="w-full mb-6"
+          onClick={() => router.push("/templates/create")}
         />
 
         <nav className="flex flex-col gap-1">

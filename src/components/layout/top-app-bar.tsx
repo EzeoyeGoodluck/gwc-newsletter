@@ -1,5 +1,8 @@
+"use client";
+
 import { Menu, Search, Bell, HelpCircle, Send } from "lucide-react";
 import { GoldButton } from "@/components/ui/gold-button";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface TopAppBarProps {
@@ -7,6 +10,7 @@ interface TopAppBarProps {
 }
 
 export function TopAppBar({ onMenuClick }: TopAppBarProps) {
+  const router = useRouter();
   return (
     <header className="flex items-center justify-between gap-6 px-4 md:px-8 py-4 bg-gwc-surface/80 backdrop-blur-md border-b border-gwc-border/30">
       <button
@@ -44,7 +48,11 @@ export function TopAppBar({ onMenuClick }: TopAppBarProps) {
           <HelpCircle className="h-5 w-5" aria-hidden="true" />
         </button>
 
-        <GoldButton label="Send Newsletter" icon={Send} />
+        <GoldButton
+          label="Send Newsletter"
+          icon={Send}
+          onClick={() => router.push("/templates/create")}
+        />
 
         <div className="h-10 w-10 rounded-full bg-gwc-navy-light overflow-hidden shrink-0" />
       </div>

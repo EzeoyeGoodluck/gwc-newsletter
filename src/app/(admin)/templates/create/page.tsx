@@ -14,6 +14,10 @@ import {
   CreateNewsletterStepThree,
   NewsletterContent,
 } from "@/components/templates/create-newsletter-step-three";
+import {
+  ReviewSendCampaign,
+  DeliveryOption,
+} from "@/components/templates/review-send-campaign";
 import { addCampaign, NewCampaignInput } from "@/lib/campaign-store";
 
 const MOCK_TEMPLATES: Template[] = [
@@ -70,6 +74,7 @@ const MOCK_TEMPLATES: Template[] = [
 ];
 
 const AUDIENCES = [
+  "All Active Members",
   "All Members",
   "Youth Ministry",
   "Volunteers",
@@ -78,7 +83,7 @@ const AUDIENCES = [
 ];
 const CATEGORIES = ["General", "Events", "Ministry", "Onboarding"];
 
-type WizardStep = 1 | 2 | 3;
+type WizardStep = 1 | 2 | 3 | 4;
 
 export default function CreateNewsletterWizard() {
   const router = useRouter();
@@ -90,7 +95,7 @@ export default function CreateNewsletterWizard() {
     initialTemplateId || startBlank ? 2 : 1
   );
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(
-    MOCK_TEMPLATES.find((t) => t.id === initialTemplateId) ?? null
+    MOCK_TEMPLATES.find((template) => template.id === initialTemplateId) ?? null
   );
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
 
@@ -112,10 +117,12 @@ export default function CreateNewsletterWizard() {
   const filteredTemplates =
     categoryFilter === "All Categories"
       ? MOCK_TEMPLATES
-      : MOCK_TEMPLATES.filter((t) => t.category === categoryFilter);
+      : MOCK_TEMPLATES.filter(
+          (template) => template.category === categoryFilter
+        );
 
   const availableCategories = Array.from(
-    new Set(MOCK_TEMPLATES.map((t) => t.category))
+    new Set(MOCK_TEMPLATES.map((template) => template.category))
   );
 
   const handleUseTemplate = (template: Template) => {
@@ -130,11 +137,16 @@ export default function CreateNewsletterWizard() {
 
   const handleStepTwoContinue = (details: CampaignDetails) => {
     setCampaignDetails(details);
-    setContent((prev) => ({ ...prev, subjectLine: details.subjectLine }));
+    setContent((previous) => ({
+      ...previous,
+      subjectLine: details.subjectLine,
+      headerImageUrl:
+        previous.headerImageUrl || selectedTemplate?.imageUrl || "",
+    }));
     setStep(3);
   };
 
-  const finalizeCampaign = (status: "draft" | "scheduled" | "sent") => {
+  const saveCampaign = (status: "draft" | "scheduled" | "sent") => {
     const newCampaign: NewCampaignInput = {
       title: campaignDetails.campaignName || "Untitled Campaign",
       category: campaignDetails.category,
@@ -145,12 +157,12 @@ export default function CreateNewsletterWizard() {
     router.push("/dashboard");
   };
 
-  const handleSaveDraft = () => finalizeCampaign("draft");
-
-  const handleSend = () => {
-    const status =
-      campaignDetails.sendOption === "schedule" ? "scheduled" : "sent";
-    finalizeCampaign(status);
+  const handleFinalSend = (option: DeliveryOption) => {
+    if (option === "schedule") {
+      saveCampaign("scheduled");
+      return;
+    }
+    saveCampaign("sent");
   };
 
   if (step === 1) {
@@ -179,14 +191,32 @@ export default function CreateNewsletterWizard() {
     );
   }
 
+  if (step === 3) {
+    return (
+      <CreateNewsletterStepThree
+        campaignName={campaignDetails.campaignName}
+        content={content}
+        onContentChange={setContent}
+        onBack={() => setStep(2)}
+        onSaveDraft={() => saveCampaign("draft")}
+        onSend={() => setStep(4)}
+      />
+    );
+  }
+
   return (
-    <CreateNewsletterStepThree
-      campaignName={campaignDetails.campaignName}
-      content={content}
-      onContentChange={setContent}
-      onBack={() => setStep(2)}
-      onSaveDraft={handleSaveDraft}
-      onSend={handleSend}
+    <ReviewSendCampaign
+      campaign={{
+        campaignName: campaignDetails.campaignName,
+        subjectLine: content.subjectLine || campaignDetails.subjectLine,
+        audience: campaignDetails.audience,
+        category: campaignDetails.category,
+        templateName: selectedTemplate?.title ?? "Blank Template",
+        templateImageUrl: content.headerImageUrl || selectedTemplate?.imageUrl,
+        recipientCount: 1240,
+      }}
+      onBack={() => setStep(3)}
+      onConfirm={handleFinalSend}
     />
   );
 }
