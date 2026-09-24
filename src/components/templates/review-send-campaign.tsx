@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, Check, ChevronDown, ChevronLeft, Clock, Send, Users } from "lucide-react";
+import {
+  Calendar,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  Clock,
+  Send,
+  Users,
+} from "lucide-react";
 
 export type DeliveryOption = "now" | "schedule" | "batches";
 
@@ -30,8 +38,14 @@ const audienceCounts: Record<string, number> = {
   Visitors: 73,
 };
 
-export function ReviewSendCampaign({ campaign, onBack, onConfirm }: ReviewSendCampaignProps) {
-  const [audience, setAudience] = useState(campaign.audience || "All Active Members");
+export function ReviewSendCampaign({
+  campaign,
+  onBack,
+  onConfirm,
+}: ReviewSendCampaignProps) {
+  const [audience, setAudience] = useState(
+    campaign.audience || "All Active Members"
+  );
   const [audienceOpen, setAudienceOpen] = useState(false);
   const [delivery, setDelivery] = useState<DeliveryOption>("now");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -55,36 +69,56 @@ export function ReviewSendCampaign({ campaign, onBack, onConfirm }: ReviewSendCa
           <ChevronLeft className="h-4 w-4" />
           Back to Editor
         </button>
-        <h1 className="text-[28px] font-semibold text-gwc-navy tracking-tight mt-2">Review & Send</h1>
-        <p className="text-sm text-gwc-text-body">Finalize delivery details for your campaign.</p>
+        <h1 className="text-[28px] font-semibold text-gwc-navy tracking-tight mt-2">
+          Review & Send
+        </h1>
+        <p className="text-sm text-gwc-text-body">
+          Finalize delivery details for your campaign.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-6">
         <div className="flex flex-col gap-5">
           <section className="bg-white border border-gwc-border/20 rounded-xl shadow-sm p-5">
-            <h2 className="text-sm font-semibold text-gwc-text-heading mb-4">Campaign Summary</h2>
+            <h2 className="text-sm font-semibold text-gwc-text-heading mb-4">
+              Campaign Summary
+            </h2>
             <div className="flex gap-3">
               <div className="h-16 w-16 rounded-lg overflow-hidden bg-gwc-muted-bg shrink-0">
                 {campaign.templateImageUrl ? (
-                  <img src={campaign.templateImageUrl} alt="Template preview" className="h-full w-full object-cover" />
+                  <img
+                    src={campaign.templateImageUrl}
+                    alt="Template preview"
+                    className="h-full w-full object-cover"
+                  />
                 ) : null}
               </div>
               <div className="min-w-0">
-                <p className="font-semibold text-sm text-gwc-text-heading truncate">{campaign.campaignName || "Untitled Campaign"}</p>
-                <p className="text-xs text-gwc-text-muted mt-1 line-clamp-2">{campaign.subjectLine || "No subject line added yet"}</p>
-                <p className="text-xs text-gwc-text-muted mt-1">Template: {campaign.templateName || "Blank Template"}</p>
+                <p className="font-semibold text-sm text-gwc-text-heading truncate">
+                  {campaign.campaignName || "Untitled Campaign"}
+                </p>
+                <p className="text-xs text-gwc-text-muted mt-1 line-clamp-2">
+                  {campaign.subjectLine || "No subject line added yet"}
+                </p>
+                <p className="text-xs text-gwc-text-muted mt-1">
+                  Template: {campaign.templateName || "Blank Template"}
+                </p>
               </div>
             </div>
           </section>
 
           <section className="bg-white border border-gwc-border/20 rounded-xl shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-gwc-text-heading">Audience Details</h2>
+              <h2 className="text-sm font-semibold text-gwc-text-heading">
+                Audience Details
+              </h2>
               <Users className="h-4 w-4 text-gwc-text-muted" />
             </div>
 
             <div className="relative">
-              <label className="block text-xs font-medium text-gwc-text-muted mb-1.5">Send to audience</label>
+              <label className="block text-xs font-medium text-gwc-text-muted mb-1.5">
+                Send to audience
+              </label>
               <button
                 onClick={() => setAudienceOpen((value) => !value)}
                 className="flex w-full items-center justify-between rounded-lg border border-gwc-border/50 bg-gwc-muted-bg px-3 py-2.5 text-sm text-gwc-text-heading cursor-pointer hover:bg-white"
@@ -94,7 +128,10 @@ export function ReviewSendCampaign({ campaign, onBack, onConfirm }: ReviewSendCa
               </button>
               {audienceOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setAudienceOpen(false)} />
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setAudienceOpen(false)}
+                  />
                   <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-gwc-border/20 bg-white py-1 shadow-lg">
                     {audienceOptions.map((option) => (
                       <button
@@ -115,23 +152,40 @@ export function ReviewSendCampaign({ campaign, onBack, onConfirm }: ReviewSendCa
 
             <div className="mt-4 rounded-lg bg-gwc-muted-bg p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gwc-navy text-xs font-semibold text-white">All</div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gwc-navy text-xs font-semibold text-white">
+                  All
+                </div>
                 <div>
-                  <p className="text-sm font-semibold text-gwc-text-heading">{audience}</p>
-                  <p className="text-xs text-gwc-text-muted">{recipients.toLocaleString()} recipients</p>
+                  <p className="text-sm font-semibold text-gwc-text-heading">
+                    {audience}
+                  </p>
+                  <p className="text-xs text-gwc-text-muted">
+                    {recipients.toLocaleString()} recipients
+                  </p>
                 </div>
               </div>
               <ul className="mt-4 space-y-2 text-xs text-gwc-text-body">
-                <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-gwc-navy" /> Includes members who can receive emails</li>
-                <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-gwc-navy" /> Excludes unsubscribed contacts</li>
-                <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-gwc-navy" /> Respects communication preferences</li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-3.5 w-3.5 text-gwc-navy" /> Includes
+                  members who can receive emails
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-3.5 w-3.5 text-gwc-navy" /> Excludes
+                  unsubscribed contacts
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-3.5 w-3.5 text-gwc-navy" /> Respects
+                  communication preferences
+                </li>
               </ul>
             </div>
           </section>
         </div>
 
         <section className="bg-white border border-gwc-border/20 rounded-xl shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-gwc-text-heading mb-4">Delivery Options</h2>
+          <h2 className="text-sm font-semibold text-gwc-text-heading mb-4">
+            Delivery Options
+          </h2>
           <div className="flex flex-col gap-3">
             <DeliveryCard
               selected={delivery === "now"}
@@ -174,7 +228,9 @@ export function ReviewSendCampaign({ campaign, onBack, onConfirm }: ReviewSendCa
               className="mt-0.5 cursor-pointer"
             />
             <span>
-              I have reviewed the recipient list, content, and delivery details. I understand this campaign will be sent to {recipients.toLocaleString()} recipients.
+              I have reviewed the recipient list, content, and delivery details.
+              I understand this campaign will be sent to{" "}
+              {recipients.toLocaleString()} recipients.
             </span>
           </label>
 
@@ -221,18 +277,28 @@ function DeliveryCard({
     <div
       onClick={onClick}
       className={`rounded-lg border p-4 cursor-pointer transition-colors ${
-        selected ? "border-gwc-navy bg-gwc-navy/5" : "border-gwc-border/30 hover:bg-gwc-muted-bg"
+        selected
+          ? "border-gwc-navy bg-gwc-navy/5"
+          : "border-gwc-border/30 hover:bg-gwc-muted-bg"
       }`}
     >
       <div className="flex items-start gap-3">
-        <span className={`mt-0.5 flex h-4 w-4 items-center justify-center rounded-full border ${selected ? "border-gwc-navy" : "border-gwc-border"}`}>
+        <span
+          className={`mt-0.5 flex h-4 w-4 items-center justify-center rounded-full border ${selected ? "border-gwc-navy" : "border-gwc-border"}`}
+        >
           {selected && <span className="h-2 w-2 rounded-full bg-gwc-navy" />}
         </span>
         <span className="text-gwc-navy">{icon}</span>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-gwc-text-heading">{title}</p>
-            {badge && <span className="rounded-full bg-gwc-gold/20 px-2 py-0.5 text-[10px] font-semibold text-gwc-gold-text">{badge}</span>}
+            <p className="text-sm font-semibold text-gwc-text-heading">
+              {title}
+            </p>
+            {badge && (
+              <span className="rounded-full bg-gwc-gold/20 px-2 py-0.5 text-[10px] font-semibold text-gwc-gold-text">
+                {badge}
+              </span>
+            )}
           </div>
           <p className="mt-1 text-xs text-gwc-text-muted">{description}</p>
           {children}
