@@ -2,7 +2,14 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ChevronDown, Heart, Mail, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  Heart,
+  Mail,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 
 type JoinPageProps = {
   params: {
@@ -21,7 +28,10 @@ function formatChurchName(slug: string) {
 export default function ChurchNewsletterJoinPage({ params }: JoinPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const churchName = useMemo(() => formatChurchName(params.churchSlug), [params.churchSlug]);
+  const churchName = useMemo(
+    () => formatChurchName(params.churchSlug),
+    [params.churchSlug]
+  );
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -30,7 +40,9 @@ export default function ChurchNewsletterJoinPage({ params }: JoinPageProps) {
 
     window.setTimeout(() => {
       setIsSubmitting(false);
-      setMessage("Your signup is ready to submit. Connect this form to your public subscription and double-opt-in workflow.");
+      setMessage(
+        "Your signup is ready to submit. Connect this form to your public subscription and double-opt-in workflow."
+      );
     }, 500);
   }
 
@@ -46,25 +58,35 @@ export default function ChurchNewsletterJoinPage({ params }: JoinPageProps) {
               .map((word) => word[0])
               .join("") || "CH"}
           </div>
-          <p className="mt-5 text-sm font-semibold text-gwc-navy">{churchName}</p>
+          <p className="mt-5 text-sm font-semibold text-gwc-navy">
+            {churchName}
+          </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
             Stay connected with your church family
           </h1>
           <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-500">
-            Sign up for the updates you care about. You can change your preferences or unsubscribe at any time.
+            Sign up for the updates you care about. You can change your
+            preferences or unsubscribe at any time.
           </p>
         </header>
 
         <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
           <div className="flex items-start gap-3 rounded-lg border border-gwc-gold/40 bg-amber-50 px-4 py-3">
-            <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
+            <Sparkles
+              className="mt-0.5 h-5 w-5 shrink-0 text-amber-700"
+              aria-hidden="true"
+            />
             <p className="text-sm leading-6 text-amber-900">
-              Welcome! Complete this short form to receive church news, events, and ministry updates by email.
+              Welcome! Complete this short form to receive church news, events,
+              and ministry updates by email.
             </p>
           </div>
 
           {message && (
-            <div role="status" className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+            <div
+              role="status"
+              className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
+            >
               {message}
             </div>
           )}
@@ -72,7 +94,9 @@ export default function ChurchNewsletterJoinPage({ params }: JoinPageProps) {
           <form onSubmit={handleSubmit} className="mt-6 space-y-5">
             <div className="grid gap-5 sm:grid-cols-2">
               <label className="block">
-                <span className="text-sm font-semibold text-slate-700">First name</span>
+                <span className="text-sm font-semibold text-slate-700">
+                  First name
+                </span>
                 <input
                   required
                   name="firstName"
@@ -82,7 +106,9 @@ export default function ChurchNewsletterJoinPage({ params }: JoinPageProps) {
                 />
               </label>
               <label className="block">
-                <span className="text-sm font-semibold text-slate-700">Last name</span>
+                <span className="text-sm font-semibold text-slate-700">
+                  Last name
+                </span>
                 <input
                   required
                   name="lastName"
@@ -94,9 +120,14 @@ export default function ChurchNewsletterJoinPage({ params }: JoinPageProps) {
             </div>
 
             <label className="block">
-              <span className="text-sm font-semibold text-slate-700">Email address</span>
+              <span className="text-sm font-semibold text-slate-700">
+                Email address
+              </span>
               <span className="relative mt-2 block">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <Mail
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  aria-hidden="true"
+                />
                 <input
                   required
                   name="email"
@@ -110,7 +141,8 @@ export default function ChurchNewsletterJoinPage({ params }: JoinPageProps) {
 
             <label className="block">
               <span className="text-sm font-semibold text-slate-700">
-                Mobile number <span className="font-normal text-slate-400">(optional)</span>
+                Mobile number{" "}
+                <span className="font-normal text-slate-400">(optional)</span>
               </span>
               <input
                 name="phone"
@@ -122,40 +154,79 @@ export default function ChurchNewsletterJoinPage({ params }: JoinPageProps) {
             </label>
 
             <fieldset>
-              <legend className="text-sm font-semibold text-slate-700">Which updates would you like?</legend>
-              <p className="mt-1 text-sm text-slate-500">Choose one or more email update types.</p>
+              <legend className="text-sm font-semibold text-slate-700">
+                Which updates would you like?
+              </legend>
+              <p className="mt-1 text-sm text-slate-500">
+                Choose one or more email update types.
+              </p>
 
               <div className="mt-3 space-y-3">
                 <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-4 transition hover:border-gwc-navy/30">
-                  <input defaultChecked type="checkbox" name="weeklyNewsletter" className="mt-0.5 h-4 w-4 rounded border-slate-300 text-gwc-navy focus:ring-gwc-navy" />
+                  <input
+                    defaultChecked
+                    type="checkbox"
+                    name="weeklyNewsletter"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-gwc-navy focus:ring-gwc-navy"
+                  />
                   <span>
-                    <span className="block text-sm font-semibold text-slate-800">Weekly church newsletter</span>
-                    <span className="mt-1 block text-sm leading-6 text-slate-500">Church news, service highlights, events, and community updates.</span>
+                    <span className="block text-sm font-semibold text-slate-800">
+                      Weekly church newsletter
+                    </span>
+                    <span className="mt-1 block text-sm leading-6 text-slate-500">
+                      Church news, service highlights, events, and community
+                      updates.
+                    </span>
                   </span>
                 </label>
 
                 <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-4 transition hover:border-gwc-navy/30">
-                  <input type="checkbox" name="youthUpdates" className="mt-0.5 h-4 w-4 rounded border-slate-300 text-gwc-navy focus:ring-gwc-navy" />
+                  <input
+                    type="checkbox"
+                    name="youthUpdates"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-gwc-navy focus:ring-gwc-navy"
+                  />
                   <span>
-                    <span className="block text-sm font-semibold text-slate-800">Youth ministry updates</span>
-                    <span className="mt-1 block text-sm leading-6 text-slate-500">Youth events, gatherings, announcements, and serving opportunities.</span>
+                    <span className="block text-sm font-semibold text-slate-800">
+                      Youth ministry updates
+                    </span>
+                    <span className="mt-1 block text-sm leading-6 text-slate-500">
+                      Youth events, gatherings, announcements, and serving
+                      opportunities.
+                    </span>
                   </span>
                 </label>
 
                 <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-4 transition hover:border-gwc-navy/30">
-                  <input type="checkbox" name="specialEvents" className="mt-0.5 h-4 w-4 rounded border-slate-300 text-gwc-navy focus:ring-gwc-navy" />
+                  <input
+                    type="checkbox"
+                    name="specialEvents"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-gwc-navy focus:ring-gwc-navy"
+                  />
                   <span>
-                    <span className="block text-sm font-semibold text-slate-800">Special events and announcements</span>
-                    <span className="mt-1 block text-sm leading-6 text-slate-500">Important church-wide announcements and special gatherings.</span>
+                    <span className="block text-sm font-semibold text-slate-800">
+                      Special events and announcements
+                    </span>
+                    <span className="mt-1 block text-sm leading-6 text-slate-500">
+                      Important church-wide announcements and special
+                      gatherings.
+                    </span>
                   </span>
                 </label>
               </div>
             </fieldset>
 
             <label className="flex items-start gap-3 rounded-lg bg-slate-50 p-4">
-              <input required type="checkbox" name="consent" className="mt-0.5 h-4 w-4 rounded border-slate-300 text-gwc-navy focus:ring-gwc-navy" />
+              <input
+                required
+                type="checkbox"
+                name="consent"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-gwc-navy focus:ring-gwc-navy"
+              />
               <span className="text-sm leading-6 text-slate-600">
-                I agree to receive the email updates selected above from {churchName}. I understand that I can unsubscribe or update my preferences at any time.
+                I agree to receive the email updates selected above from{" "}
+                {churchName}. I understand that I can unsubscribe or update my
+                preferences at any time.
               </span>
             </label>
 
@@ -169,17 +240,27 @@ export default function ChurchNewsletterJoinPage({ params }: JoinPageProps) {
           </form>
 
           <div className="mt-6 flex items-start gap-3 border-t border-slate-100 pt-5">
-            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-gwc-navy" aria-hidden="true" />
+            <ShieldCheck
+              className="mt-0.5 h-5 w-5 shrink-0 text-gwc-navy"
+              aria-hidden="true"
+            />
             <p className="text-xs leading-5 text-slate-500">
-              We respect your privacy. Your preferences will be recorded and a confirmation email should be sent before your subscription becomes active.
+              We respect your privacy. Your preferences will be recorded and a
+              confirmation email should be sent before your subscription becomes
+              active.
             </p>
           </div>
         </section>
 
         <footer className="mt-6 flex flex-col items-center justify-center gap-2 text-center text-xs text-slate-400 sm:flex-row">
-          <span className="inline-flex items-center gap-1.5"><Heart className="h-3.5 w-3.5" aria-hidden="true" /> {churchName}</span>
+          <span className="inline-flex items-center gap-1.5">
+            <Heart className="h-3.5 w-3.5" aria-hidden="true" /> {churchName}
+          </span>
           <span className="hidden sm:block">•</span>
-          <Link href="/login" className="font-medium text-slate-500 transition hover:text-gwc-navy">
+          <Link
+            href="/login"
+            className="font-medium text-slate-500 transition hover:text-gwc-navy"
+          >
             Church staff sign in
           </Link>
         </footer>

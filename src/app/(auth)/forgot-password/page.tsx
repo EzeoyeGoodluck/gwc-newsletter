@@ -2,7 +2,13 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, KeyRound, Mail, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  KeyRound,
+  Mail,
+  ShieldCheck,
+} from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,27 +40,41 @@ export default function ForgotPasswordPage() {
             <KeyRound className="h-6 w-6" aria-hidden="true" />
           </div>
 
-          <h1 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">Reset your password</h1>
+          <h1 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
+            Reset your password
+          </h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Enter the email address associated with your church workspace. We will send reset instructions if an account exists.
+            Enter the email address associated with your church workspace. We
+            will send reset instructions if an account exists.
           </p>
 
           {isSubmitted ? (
             <div className="mt-6">
-              <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+              <div
+                role="status"
+                className="rounded-lg border border-emerald-200 bg-emerald-50 p-4"
+              >
                 <div className="flex items-start gap-3">
-                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
+                  <ShieldCheck
+                    className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
+                    aria-hidden="true"
+                  />
                   <div>
-                    <h2 className="text-sm font-semibold text-emerald-900">Check your email</h2>
+                    <h2 className="text-sm font-semibold text-emerald-900">
+                      Check your email
+                    </h2>
                     <p className="mt-1 text-sm leading-6 text-emerald-800">
-                      If an account matches that address, password-reset instructions will be sent shortly.
+                      If an account matches that address, password-reset
+                      instructions will be sent shortly.
                     </p>
                   </div>
                 </div>
               </div>
 
               <p className="mt-5 text-sm leading-6 text-slate-500">
-                This UI uses a generic confirmation message intentionally. When connected, the backend should not reveal whether an email address has an account.
+                This UI uses a generic confirmation message intentionally. When
+                connected, the backend should not reveal whether an email
+                address has an account.
               </p>
 
               <Link
@@ -67,9 +87,14 @@ export default function ForgotPasswordPage() {
           ) : (
             <form onSubmit={handleSubmit} className="mt-7 space-y-5">
               <label className="block">
-                <span className="text-sm font-semibold text-slate-700">Email address</span>
+                <span className="text-sm font-semibold text-slate-700">
+                  Email address
+                </span>
                 <span className="relative mt-2 block">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                  <Mail
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                    aria-hidden="true"
+                  />
                   <input
                     required
                     type="email"
@@ -86,7 +111,9 @@ export default function ForgotPasswordPage() {
                 className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? "Preparing reset…" : "Send reset instructions"}
-                {!isSubmitting && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+                {!isSubmitting && (
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                )}
               </button>
             </form>
           )}
@@ -94,7 +121,10 @@ export default function ForgotPasswordPage() {
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Remembered your password?{" "}
-          <Link href="/login" className="font-semibold text-gwc-navy transition hover:opacity-75">
+          <Link
+            href="/login"
+            className="font-semibold text-gwc-navy transition hover:opacity-75"
+          >
             Sign in
           </Link>
         </p>
