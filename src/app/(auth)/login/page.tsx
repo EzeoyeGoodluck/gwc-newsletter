@@ -3,21 +3,36 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     setMessage(null);
+     setError("");
 
-    window.setTimeout(() => {
-      setIsSubmitting(false);
-      setMessage("Sign-in is ready to connect. Add your authentication provider to enable secure access.");
-    }, 450);
+    const { error } = await authClient.signIn.email({ email, password });
+
+    setLoading(false);
+    if (error) {
+      setError(error.message ?? "Sign-in failed");
+      return;
+    }
+    router.push("/admin");
+    router.refresh();
+
+ 
+
   }
 
   return (
