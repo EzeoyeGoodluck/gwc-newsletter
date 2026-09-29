@@ -16,5 +16,11 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  const user = {
+    name: session.user.name,
+    email: session.user.email,
+    role: session.user.role ?? "VIEWER",
+  };
+
+  return <AdminShell user={user}>{children}</AdminShell>;
 }

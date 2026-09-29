@@ -5,7 +5,19 @@ import { SideNavBar } from "@/components/layout/side-nav-bar";
 import { TopAppBar } from "@/components/layout/top-app-bar";
 import { BrandingProvider } from "@/lib/branding-context";
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export type SessionUser = {
+  name: string;
+  email: string;
+  role: string;
+};
+
+export function AdminShell({
+  user,
+  children,
+}: {
+  user: SessionUser;
+  children: React.ReactNode;
+}) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
@@ -28,7 +40,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         )}
 
         <div className="flex-1 flex flex-col md:ml-[280px]">
-          <TopAppBar onMenuClick={() => setMobileNavOpen(true)} />
+          <TopAppBar user={user} onMenuClick={() => setMobileNavOpen(true)} />
           <main className="flex-1 p-4 md:p-8">{children}</main>
         </div>
       </div>

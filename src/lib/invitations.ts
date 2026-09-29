@@ -1,12 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-
-export const ROLE_LABELS: Record<string, string> = {
-  OWNER: "Owner",
-  ADMIN: "Administrator",
-  EDITOR: "Editor",
-  VIEWER: "Viewer",
-};
+export { ROLE_LABELS } from "@/lib/permissions";
 
 export async function getValidInvitation(token: string | undefined) {
   if (!token) return null;

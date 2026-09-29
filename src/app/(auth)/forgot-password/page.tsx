@@ -9,19 +9,31 @@ import {
   Mail,
   ShieldCheck,
 } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 export default function ForgotPasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const data = new FormData(event.currentTarget);
+    const email = String(data.get("email") ?? "").trim();
+
     setIsSubmitting(true);
 
-    window.setTimeout(() => {
+    try {
+      await authClient.requestPasswordReset({
+        email,
+        redirectTo: "/reset-password",
+      });
+    } catch {
+      // Show the same message either way so we never reveal whether an account exists.
+    } finally {
       setIsSubmitting(false);
       setIsSubmitted(true);
-    }, 450);
+    }
   }
 
   return (
@@ -64,18 +76,12 @@ export default function ForgotPasswordPage() {
                       Check your email
                     </h2>
                     <p className="mt-1 text-sm leading-6 text-emerald-800">
-                      If an account matches that address, password-reset
-                      instructions will be sent shortly.
+                      If an account matches that address, a password-reset link
+                      will arrive shortly. The link expires in 1 hour.
                     </p>
                   </div>
                 </div>
               </div>
-
-              <p className="mt-5 text-sm leading-6 text-slate-500">
-                This UI uses a generic confirmation message intentionally. When
-                connected, the backend should not reveal whether an email
-                address has an account.
-              </p>
 
               <Link
                 href="/login"
@@ -97,6 +103,7 @@ export default function ForgotPasswordPage() {
                   />
                   <input
                     required
+                    name="email"
                     type="email"
                     autoComplete="email"
                     placeholder="you@church.org"
@@ -110,7 +117,7 @@ export default function ForgotPasswordPage() {
                 disabled={isSubmitting}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSubmitting ? "Preparing reset…" : "Send reset instructions"}
+                {isSubmitting ? "Sending…" : "Send reset instructions"}
                 {!isSubmitting && (
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 )}
