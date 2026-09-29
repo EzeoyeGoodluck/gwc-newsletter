@@ -62,3 +62,19 @@ model Verification {
 
   @@index([identifier])
 }
+
+
+model Invitation {
+  id          String    @id @default(cuid())
+  email       String
+  role        String    @default("VIEWER")
+  token       String    @unique
+  status      String    @default("PENDING")
+  invitedById String?
+  expiresAt   DateTime
+  claimedAt   DateTime?
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
+}
