@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   MembersDirectory,
   Member,
@@ -12,50 +12,30 @@ import {
 } from "@/components/members/create-category-modal";
 import { EditMemberPage } from "@/components/members/edit-member-page";
 
-const MOCK_MEMBERS: Member[] = [
-  {
-    id: "1",
-    memberId: "#GW-1042",
-    name: "Martha Jenkins",
-    email: "martha.j@example.com",
-    phone: "(555) 123-4567",
-    categories: ["Voices of Glory", "Women's Min"],
-    status: "active",
-  },
-  {
-    id: "2",
-    memberId: "#GW-0015",
-    name: "Deacon Robert Smith",
-    email: "r.smith@gloryworship.org",
-    phone: "(555) 987-6543",
-    categories: ["Elders Council"],
-    status: "active",
-  },
-  {
-    id: "3",
-    memberId: "#GW-2109",
-    name: "Chloe Williams",
-    email: "chloe.w@example.com",
-    categories: [],
-    status: "visitor",
-  },
-];
+import {
+  listCategories,
+  listMembers,
+  createMember,
+  createCategory,
+  updateMember,
+  removeMember,
+} from "@/app/(admin)/members/actions";
 
-function generateMemberId(existing: Member[]): string {
-  const nums = existing
-    .map((m) => parseInt(m.memberId.replace("#GW-", ""), 10))
-    .filter((n) => !isNaN(n));
-  const next = (nums.length ? Math.max(...nums) : 0) + 1;
-  return `#GW-${String(next).padStart(4, "0")}`;
+const PAGE_SIZE = 10;
+
+type CategoryLike = string | { name: string; description?: string | null };
+
+function toCategories(data: CategoryLike[]): Category[] {
+  return data.map((c) =>
+    typeof c === "string"
+      ? { name: c, description: "" }
+      : { name: c.name, description: c.description ?? "" }
+  );
 }
-
 export default function MembersPage() {
-  const [members, setMembers] = useState<Member[]>(MOCK_MEMBERS);
-  const [categories, setCategories] = useState<Category[]>([
-    { name: "Voices of Glory", description: "" },
-    { name: "Women's Min", description: "" },
-    { name: "Elders Council", description: "" },
-  ]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [total, setTotal] = useState(0);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [page, setPage] = useState(1);
   const [roleFilter, setRoleFilter] = useState("All Members");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
@@ -63,25 +43,36 @@ export default function MembersPage() {
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [viewMode, setViewMode] = useState<"edit" | "view">("edit");
+  const [message, setMessage] = useState<string | null>(null);
 
-  const pageSize = 3;
-
-  const filteredMembers = useMemo(() => {
-    return members.filter((m) => {
-      const roleMatch =
-        roleFilter === "All Members" ||
-        m.status.toLowerCase() === roleFilter.toLowerCase();
-      const categoryMatch =
-        categoryFilter === "All Categories" ||
-        m.categories.includes(categoryFilter);
-      return roleMatch && categoryMatch;
+  const loadMembers = useCallback(async () => {
+    const res = await listMembers({
+      page,
+      pageSize: PAGE_SIZE,
+      status: roleFilter,
+      category: categoryFilter,
     });
-  }, [members, roleFilter, categoryFilter]);
+    if (res.ok) {
+      setMembers(res.data.members);
+      setTotal(res.data.total);
+    } else {
+      setMessage(res.message);
+    }
+  }, [page, roleFilter, categoryFilter]);
 
-  const paginatedMembers = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredMembers.slice(start, start + pageSize);
-  }, [filteredMembers, page, pageSize]);
+  const loadCategories = useCallback(async () => {
+    const res = await listCategories();
+    if (res?.ok) setCategories(toCategories(res.data));
+    else if (Array.isArray(res)) setCategories(toCategories(res));
+  }, []);
+
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
 
   const handleRoleFilterChange = (role: string) => {
     setRoleFilter(role);
@@ -93,22 +84,43 @@ export default function MembersPage() {
     setPage(1);
   };
 
-  const handleAddMember = (newMember: Omit<Member, "id" | "memberId">) => {
-    const member: Member = {
-      ...newMember,
-      id: crypto.randomUUID(),
-      memberId: generateMemberId(members),
-    };
-    setMembers((prev) => [member, ...prev]);
+  const handleAddMember = async (
+    newMember: Omit<Member, "id" | "memberId">
+  ) => {
+    setMessage(null);
+    const res = await createMember({
+      name: newMember.name,
+      email: newMember.email,
+      phone: newMember.phone,
+      status: newMember.status,
+      categories: newMember.categories,
+    });
+    if (!res.ok) {
+      setMessage(res.message);
+      return;
+    }
+    await Promise.all([loadMembers(), loadCategories()]);
   };
 
-  const handleCreateCategory = (category: Category) => {
-    setCategories((prev) => [...prev, category]);
+  const handleCreateCategory = async (category: Category) => {
+    setMessage(null);
+    const res = await createCategory({
+      name: category.name,
+      description: category.description,
+    });
+    if (!res.ok) {
+      setMessage(res.message);
+      return;
+    }
+    await loadCategories();
   };
 
-  const handleMemberAction = (action: string, member: Member) => {
+  const handleMemberAction = async (action: string, member: Member) => {
     if (action === "Remove Member") {
-      setMembers((prev) => prev.filter((m) => m.id !== member.id));
+      if (!confirm(`Remove ${member.name}?`)) return;
+      const res = await removeMember(member.id);
+      if (!res.ok) setMessage(res.message);
+      await loadMembers();
       return;
     }
     if (action === "Edit Member") {
@@ -124,7 +136,7 @@ export default function MembersPage() {
     console.log(action, member);
   };
 
-  const handleSaveEdit = (formData: {
+  const handleSaveEdit = async (formData: {
     fullName: string;
     email: string;
     phone: string;
@@ -132,21 +144,19 @@ export default function MembersPage() {
     status: string;
   }) => {
     if (!editingMember) return;
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.id === editingMember.id
-          ? {
-              ...m,
-              name: formData.fullName,
-              email: formData.email,
-              phone: formData.phone,
-              categories: formData.categories,
-              status: formData.status.toLowerCase() as Member["status"],
-            }
-          : m
-      )
-    );
+    const res = await updateMember(editingMember.id, {
+      fullName: formData.fullName,
+      email: formData.email,
+      phone: formData.phone,
+      categories: formData.categories,
+      status: formData.status.toLowerCase() as Member["status"],
+    });
+    if (!res.ok) {
+      setMessage(res.message);
+      return;
+    }
     setEditingMember(null);
+    await Promise.all([loadMembers(), loadCategories()]);
   };
 
   if (editingMember) {
@@ -182,11 +192,17 @@ export default function MembersPage() {
 
   return (
     <>
+      {message && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {message}
+        </div>
+      )}
+
       <MembersDirectory
-        members={paginatedMembers}
-        total={filteredMembers.length}
+        members={members}
+        total={total}
         page={page}
-        pageSize={pageSize}
+        pageSize={PAGE_SIZE}
         roleFilter={roleFilter}
         categoryFilter={categoryFilter}
         availableCategories={categories.map((c) => c.name)}

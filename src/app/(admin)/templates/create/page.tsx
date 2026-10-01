@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   NewsletterTemplates,
@@ -18,74 +18,16 @@ import {
   ReviewSendCampaign,
   DeliveryOption,
 } from "@/components/templates/review-send-campaign";
-import { addCampaign, NewCampaignInput } from "@/lib/campaign-store";
+import { saveNewsletter, countRecipients } from "@/lib/newsletter-actions";
+import { listTemplates } from "../actions";
+import { listCategories } from "@/app/(admin)/members/actions";
 
-const MOCK_TEMPLATES: Template[] = [
-  {
-    id: "1",
-    title: "Annual Worship & Revival",
-    description:
-      "Immersive worship gathering layout with event schedule, speaker details, and RSVP call-to-action.",
-    imageUrl:
-      "https://images.unsplash.com/photo-1519070994522-88c6b756f9dc?w=600",
-    category: "Events",
-    updatedLabel: "Updated 3 days ago",
-  },
-  {
-    id: "2",
-    title: "Weekly Bulletin",
-    description:
-      "Standard layout for Sunday service order, announcements, and key contacts.",
-    imageUrl:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600",
-    category: "General",
-    updatedLabel: "Updated 2 days ago",
-    popular: true,
-  },
-  {
-    id: "3",
-    title: "Youth Ministry Update",
-    description:
-      "Vibrant design tailored for teen events, volunteer sign-ups, and parent info.",
-    imageUrl:
-      "https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?w=600",
-    category: "Ministry",
-    updatedLabel: "Updated 1 week ago",
-  },
-  {
-    id: "4",
-    title: "Special Event Announcement",
-    description:
-      "High-impact layout for conferences, holiday services, and community outreach.",
-    imageUrl: "https://images.unsplash.com/photo-1544928147-79a2dbc1f389?w=600",
-    category: "Events",
-    updatedLabel: "Updated 2 weeks ago",
-  },
-  {
-    id: "5",
-    title: "New Member Welcome",
-    description:
-      "Warm, invitational sequence introducing church vision, staff, and next steps.",
-    imageUrl:
-      "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=600",
-    category: "Onboarding",
-    updatedLabel: "Updated 1 month ago",
-  },
-];
-
-const AUDIENCES = [
-  "All Active Members",
-  "All Members",
-  "Youth Ministry",
-  "Volunteers",
-  "Elders Council",
-  "Visitors",
-];
+const BASE_AUDIENCES = ["All Active Members", "All Members"];
 const CATEGORIES = ["General", "Events", "Ministry", "Onboarding"];
 
 type WizardStep = 1 | 2 | 3 | 4;
 
-export default function CreateNewsletterWizard() {
+function CreateNewsletterWizardInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTemplateId = searchParams.get("templateId");
@@ -94,15 +36,19 @@ export default function CreateNewsletterWizard() {
   const [step, setStep] = useState<WizardStep>(
     initialTemplateId || startBlank ? 2 : 1
   );
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [audiences, setAudiences] = useState<string[]>(BASE_AUDIENCES);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(
-    MOCK_TEMPLATES.find((template) => template.id === initialTemplateId) ?? null
+    null
   );
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
+  const [recipientCount, setRecipientCount] = useState(0);
+  const [saving, setSaving] = useState(false);
 
   const [campaignDetails, setCampaignDetails] = useState<CampaignDetails>({
     campaignName: "",
     subjectLine: "",
-    audience: AUDIENCES[0],
+    audience: BASE_AUDIENCES[0],
     category: CATEGORIES[0],
     sendOption: "now",
     scheduledDate: "",
@@ -114,19 +60,50 @@ export default function CreateNewsletterWizard() {
     bodyText: "",
   });
 
+  // Load templates + audiences from MySQL
+  useEffect(() => {
+    listTemplates().then((res) => {
+      if (!res.ok) return;
+      setTemplates(res.data);
+      if (initialTemplateId) {
+        const found = res.data.find((t) => t.id === initialTemplateId) ?? null;
+        setSelectedTemplate(found);
+        if (found) {
+          setCampaignDetails((prev) => ({ ...prev, category: found.category }));
+        }
+      }
+    });
+
+    listCategories().then((res) => {
+      if (res.ok) {
+        setAudiences([...BASE_AUDIENCES, ...res.data.map((c) => c.name)]);
+      }
+    });
+  }, [initialTemplateId]);
+
+  // Real recipient count on the review step
+  useEffect(() => {
+    if (step !== 4) return;
+    countRecipients(campaignDetails.audience).then((res) => {
+      if (res.ok) setRecipientCount(res.data);
+    });
+  }, [step, campaignDetails.audience]);
+
   const filteredTemplates =
     categoryFilter === "All Categories"
-      ? MOCK_TEMPLATES
-      : MOCK_TEMPLATES.filter(
-          (template) => template.category === categoryFilter
-        );
+      ? templates
+      : templates.filter((t) => t.category === categoryFilter);
 
   const availableCategories = Array.from(
-    new Set(MOCK_TEMPLATES.map((template) => template.category))
+    new Set(templates.map((t) => t.category))
+  );
+  const campaignCategories = Array.from(
+    new Set([...CATEGORIES, ...availableCategories])
   );
 
   const handleUseTemplate = (template: Template) => {
     setSelectedTemplate(template);
+    setCampaignDetails((prev) => ({ ...prev, category: template.category }));
     setStep(2);
   };
 
@@ -146,23 +123,31 @@ export default function CreateNewsletterWizard() {
     setStep(3);
   };
 
-  const saveCampaign = (status: "draft" | "scheduled" | "sent") => {
-    const newCampaign: NewCampaignInput = {
-      title: campaignDetails.campaignName || "Untitled Campaign",
-      category: campaignDetails.category,
-      status,
+  const saveCampaign = async (intent: "draft" | "scheduled" | "send") => {
+    if (saving) return;
+    setSaving(true);
+    const res = await saveNewsletter({
+      intent,
+      campaignName: campaignDetails.campaignName,
+      subjectLine: content.subjectLine || campaignDetails.subjectLine,
       audience: campaignDetails.audience,
-    };
-    addCampaign(newCampaign);
+      category: campaignDetails.category,
+      scheduledDate: campaignDetails.scheduledDate,
+      templateId: selectedTemplate?.id ?? null,
+      headerImageUrl: content.headerImageUrl,
+      bodyText: content.bodyText,
+    });
+    setSaving(false);
+
+    if (!res.ok) {
+      alert(res.message);
+      return;
+    }
     router.push("/dashboard");
   };
 
   const handleFinalSend = (option: DeliveryOption) => {
-    if (option === "schedule") {
-      saveCampaign("scheduled");
-      return;
-    }
-    saveCampaign("sent");
+    saveCampaign(option === "schedule" ? "scheduled" : "send");
   };
 
   if (step === 1) {
@@ -181,10 +166,11 @@ export default function CreateNewsletterWizard() {
   if (step === 2) {
     return (
       <CreateNewsletterStepTwo
+        key={selectedTemplate?.id ?? "blank"}
         templateName={selectedTemplate?.title ?? "Blank Template"}
         initialData={campaignDetails}
-        availableAudiences={AUDIENCES}
-        availableCategories={CATEGORIES}
+        availableAudiences={audiences}
+        availableCategories={campaignCategories}
         onBack={() => setStep(1)}
         onContinue={handleStepTwoContinue}
       />
@@ -213,10 +199,18 @@ export default function CreateNewsletterWizard() {
         category: campaignDetails.category,
         templateName: selectedTemplate?.title ?? "Blank Template",
         templateImageUrl: content.headerImageUrl || selectedTemplate?.imageUrl,
-        recipientCount: 1240,
+        recipientCount,
       }}
       onBack={() => setStep(3)}
       onConfirm={handleFinalSend}
     />
+  );
+}
+
+export default function CreateNewsletterWizard() {
+  return (
+    <Suspense fallback={null}>
+      <CreateNewsletterWizardInner />
+    </Suspense>
   );
 }

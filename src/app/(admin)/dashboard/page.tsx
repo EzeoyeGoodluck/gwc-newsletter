@@ -6,6 +6,7 @@ import { MetricsRow } from "@/components/dashboard/metrics-row";
 import { CampaignFilters } from "@/components/dashboard/campaign-filters";
 import { CampaignsTable } from "@/components/dashboard/campaigns-table";
 import { CampaignsPagination } from "@/components/dashboard/campaigns-pagination";
+import { deleteNewsletter } from "@/lib/newsletter-actions";
 import {
   NoCampaignsEmptyState,
   NoMatchesEmptyState,
@@ -114,6 +115,24 @@ export default function DashboardPage() {
     campaigns.length === 0 &&
     hasFilters;
 
+  const handleCampaignAction = async (action: string, campaign: Campaign) => {
+    if (action === "Delete" || action === "Delete Campaign") {
+      if (!confirm(`Delete "${campaign.title}"? This cannot be undone.`))
+        return;
+      const res = await deleteNewsletter(campaign.id);
+      if (!res.ok) {
+        alert(res.message);
+        return;
+      }
+      await loadCampaigns();
+      fetchDashboardMetrics()
+        .then(setMetrics)
+        .catch(() => {});
+      return;
+    }
+    console.log(action, campaign);
+  };
+
   return (
     <div>
       <div className="mb-6">
@@ -159,7 +178,7 @@ export default function DashboardPage() {
             </p>
             <CampaignsTable
               campaigns={campaigns}
-              onAction={(action, c) => console.log(action, c)}
+              onAction={handleCampaignAction}
             />
           </>
         )}

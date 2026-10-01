@@ -11,7 +11,12 @@ interface AddMemberModalProps {
   onSave: (member: Omit<Member, "id" | "memberId">) => void;
 }
 
-export function AddMemberModal({ open, availableCategories, onClose, onSave }: AddMemberModalProps) {
+export function AddMemberModal({
+  open,
+  availableCategories,
+  onClose,
+  onSave,
+}: AddMemberModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -35,12 +40,28 @@ export function AddMemberModal({ open, availableCategories, onClose, onSave }: A
 
   const handleSave = () => {
     if (!name.trim() || !email.trim()) return;
-    onSave({ name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, categories, status });
+
+    // Include anything still typed in the category box
+    const pending = categoryInput.trim();
+    const finalCategories =
+      pending && !categories.includes(pending)
+        ? [...categories, pending]
+        : categories;
+
+    onSave({
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim() || undefined,
+      categories: finalCategories,
+      status,
+    });
+
     setName("");
     setEmail("");
     setPhone("");
     setStatus("active");
     setCategories([]);
+    setCategoryInput("");
     onClose();
   };
 
@@ -48,15 +69,22 @@ export function AddMemberModal({ open, availableCategories, onClose, onSave }: A
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gwc-navy">Add New Member</h2>
-          <button onClick={onClose} className="text-gwc-text-muted hover:text-gwc-text-heading">
+          <h2 className="text-xl font-semibold text-gwc-navy">
+            Add New Member
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gwc-text-muted hover:text-gwc-text-heading"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gwc-text-heading">Full Name</label>
+            <label className="text-sm font-medium text-gwc-text-heading">
+              Full Name
+            </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -66,7 +94,9 @@ export function AddMemberModal({ open, availableCategories, onClose, onSave }: A
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gwc-text-heading">Email Address</label>
+            <label className="text-sm font-medium text-gwc-text-heading">
+              Email Address
+            </label>
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -77,7 +107,9 @@ export function AddMemberModal({ open, availableCategories, onClose, onSave }: A
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gwc-text-heading">Phone Number</label>
+            <label className="text-sm font-medium text-gwc-text-heading">
+              Phone Number
+            </label>
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -87,7 +119,9 @@ export function AddMemberModal({ open, availableCategories, onClose, onSave }: A
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gwc-text-heading">Categories</label>
+            <label className="text-sm font-medium text-gwc-text-heading">
+              Categories
+            </label>
             <div className="flex flex-wrap gap-2 border border-gwc-border rounded-lg px-3 py-2 bg-gwc-muted-bg">
               {categories.map((c) => (
                 <span
@@ -95,14 +129,22 @@ export function AddMemberModal({ open, availableCategories, onClose, onSave }: A
                   className="flex items-center gap-1 bg-gwc-gold/30 text-gwc-gold-text text-xs px-2.5 py-1 rounded-full"
                 >
                   {c}
-                  <button onClick={() => removeCategory(c)}>
+                  <button type="button" onClick={() => removeCategory(c)}>
                     <X className="h-3 w-3" />
                   </button>
                 </span>
               ))}
               <input
                 value={categoryInput}
-                onChange={(e) => setCategoryInput(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Turn it into a chip right away when a suggestion is picked
+                  if (availableCategories.includes(value)) {
+                    addCategory(value);
+                  } else {
+                    setCategoryInput(value);
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -122,7 +164,9 @@ export function AddMemberModal({ open, availableCategories, onClose, onSave }: A
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gwc-text-heading">Status</label>
+            <label className="text-sm font-medium text-gwc-text-heading">
+              Status
+            </label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as MemberStatus)}

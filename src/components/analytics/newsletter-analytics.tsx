@@ -182,7 +182,7 @@ function EngagementChart({ data }: { data: EngagementPoint[] }) {
         />
 
         {data.map((d, i) => (
-          <g key={d.label}>
+          <g key={i}>
             <circle
               cx={opensPoints[i].x}
               cy={opensPoints[i].y}
@@ -357,6 +357,16 @@ export function NewsletterAnalytics({
               </tr>
             </thead>
             <tbody>
+              {broadcasts.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="py-10 px-6 text-center text-gwc-text-muted"
+                  >
+                    No newsletters sent in this period yet.
+                  </td>
+                </tr>
+              )}
               {broadcasts.map((b) => (
                 <tr
                   key={b.id}

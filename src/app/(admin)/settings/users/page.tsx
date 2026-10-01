@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -8,33 +8,30 @@ import {
   ChevronDown,
   CircleAlert,
   Clock3,
+  Copy,
   Mail,
   MoreHorizontal,
   Plus,
-  ShieldCheck,
   UserCog,
   Users,
   X,
 } from "lucide-react";
+import {
+  getTeam,
+  changeMemberRole,
+  removeTeamMember,
+  createInvitation,
+  cancelInvitation as cancelInvitationAction,
+  TeamMemberDTO,
+  InvitationDTO,
+} from "./actions";
+import { canManageRole, assignableRoles } from "@/lib/permissions";
+import { LABEL_TO_ROLE, ROLE_TO_LABEL, RoleLabel } from "@/lib/roles";
 
-type Role = "Owner" | "Administrator" | "Editor" | "Viewer";
-type TeamMember = {
-  id: number;
-  initials: string;
-  name: string;
-  email: string;
-  role: Role;
-  lastActive: string;
-  status: "Active";
-};
-type Invitation = {
-  id: number;
-  initials: string;
-  email: string;
-  role: Exclude<Role, "Owner">;
-  invitedBy: string;
-  sentAt: string;
-};
+type Role = RoleLabel;
+type InviteRole = Exclude<Role, "Owner">;
+
+const ALL_ROLES: Role[] = ["Owner", "Administrator", "Editor", "Viewer"];
 
 const roleDescriptions: Record<Role, string> = {
   Owner:
@@ -45,56 +42,6 @@ const roleDescriptions: Record<Role, string> = {
     "Create and edit newsletters and templates without access to security or organization controls.",
   Viewer: "Read-only access to permitted CMS areas and reporting.",
 };
-
-const initialMembers: TeamMember[] = [
-  {
-    id: 1,
-    initials: "AR",
-    name: "Admin Robert",
-    email: "admin@gloryworshipchurch.org",
-    role: "Owner",
-    lastActive: "Active now",
-    status: "Active",
-  },
-  {
-    id: 2,
-    initials: "MJ",
-    name: "Martha Jenkins",
-    email: "martha.jenkins@gloryworshipchurch.org",
-    role: "Administrator",
-    lastActive: "Today, 10:42 AM",
-    status: "Active",
-  },
-  {
-    id: 3,
-    initials: "JW",
-    name: "James Williams",
-    email: "james.williams@gloryworshipchurch.org",
-    role: "Editor",
-    lastActive: "Yesterday, 3:16 PM",
-    status: "Active",
-  },
-  {
-    id: 4,
-    initials: "SD",
-    name: "Sarah Davis",
-    email: "sarah.davis@gloryworshipchurch.org",
-    role: "Viewer",
-    lastActive: "Sep 18, 2026",
-    status: "Active",
-  },
-];
-
-const initialInvitations: Invitation[] = [
-  {
-    id: 101,
-    initials: "DM",
-    email: "david.miller@gloryworshipchurch.org",
-    role: "Editor",
-    invitedBy: "Admin Robert",
-    sentAt: "Today, 9:30 AM",
-  },
-];
 
 function getInitials(name: string) {
   return (
@@ -108,6 +55,26 @@ function getInitials(name: string) {
   );
 }
 
+function formatWhen(iso: string | null) {
+  if (!iso) return "Never signed in";
+  const d = new Date(iso);
+  const diffMin = (Date.now() - d.getTime()) / 60_000;
+  if (diffMin < 5) return "Active now";
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const yesterday = new Date(Date.now() - 86_400_000);
+  if (d.toDateString() === new Date().toDateString()) return `Today, ${time}`;
+  if (d.toDateString() === yesterday.toDateString())
+    return `Yesterday, ${time}`;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function RoleBadge({ role }: { role: Role }) {
   const styles: Record<Role, string> = {
     Owner: "bg-gwc-navy/10 text-gwc-navy",
@@ -118,7 +85,7 @@ function RoleBadge({ role }: { role: Role }) {
 
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${styles[role]}`}
+      className={`inline-flex w-[124px] items-center justify-center whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ${styles[role]}`}
     >
       {role}
     </span>
@@ -126,107 +93,136 @@ function RoleBadge({ role }: { role: Role }) {
 }
 
 export default function TeamPermissionsPage() {
-  const [members, setMembers] = useState<TeamMember[]>(initialMembers);
-  const [invitations, setInvitations] =
-    useState<Invitation[]>(initialInvitations);
+  const [members, setMembers] = useState<TeamMemberDTO[]>([]);
+  const [invitations, setInvitations] = useState<InvitationDTO[]>([]);
+  const [currentRole, setCurrentRole] = useState<Role>("Viewer");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] =
-    useState<Exclude<Role, "Owner">>("Editor");
+  const [inviteRole, setInviteRole] = useState<InviteRole>("Editor");
+  const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
+
+  const myRole = LABEL_TO_ROLE[currentRole];
+  const inviteOptions = useMemo(
+    () => assignableRoles(myRole).map((r) => ROLE_TO_LABEL[r]) as InviteRole[],
+    [myRole]
+  );
+  const canInvite = inviteOptions.length > 0;
+  const canManageMember = (m: TeamMemberDTO) =>
+    !m.isYou && canManageRole(myRole, LABEL_TO_ROLE[m.role]);
+
+  const load = useCallback(async () => {
+    const res = await getTeam();
+    setLoading(false);
+    if (!res.ok) return setError(res.message);
+    setMembers(res.data.members);
+    setInvitations(res.data.invitations);
+    setCurrentRole(res.data.currentRole);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    if (inviteOptions.length && !inviteOptions.includes(inviteRole)) {
+      setInviteRole(inviteOptions[inviteOptions.length - 1]);
+    }
+  }, [inviteOptions, inviteRole]);
 
   const roleCounts = useMemo(
     () =>
       members.reduce<Record<Role, number>>(
-        (counts, member) => ({
-          ...counts,
-          [member.role]: counts[member.role] + 1,
-        }),
+        (counts, m) => ({ ...counts, [m.role]: counts[m.role] + 1 }),
         { Owner: 0, Administrator: 0, Editor: 0, Viewer: 0 }
       ),
     [members]
   );
 
-  function updateMemberRole(id: number, role: Role) {
-    const target = members.find((member) => member.id === id);
-
-    if (target?.role === "Owner") {
-      setNotice("Owner access cannot be changed in this UI preview.");
-      setActiveMenuId(null);
-      return;
+  function report(res: { ok: boolean; message?: string }, success: string) {
+    if (res.ok) {
+      setError(null);
+      setNotice(success);
+    } else {
+      setNotice(null);
+      setError(res.message ?? "Something went wrong.");
     }
-
-    setMembers((current) =>
-      current.map((member) => (member.id === id ? { ...member, role } : member))
-    );
-    setActiveMenuId(null);
-    setNotice(
-      `${target?.name ?? "Team member"} is now assigned the ${role} role in this UI preview.`
-    );
   }
 
-  function removeMember(id: number) {
-    const target = members.find((member) => member.id === id);
-
-    if (target?.role === "Owner") {
-      setNotice("The account owner cannot be removed in this UI preview.");
-      setActiveMenuId(null);
-      return;
-    }
-
-    setMembers((current) => current.filter((member) => member.id !== id));
+  async function updateMemberRole(id: string, role: Role) {
+    const target = members.find((m) => m.id === id);
     setActiveMenuId(null);
-    setNotice(
-      `${target?.name ?? "Team member"} was removed from this UI preview.`
+    setBusy(true);
+    const res = await changeMemberRole(id, role);
+    setBusy(false);
+    report(
+      res,
+      `${target?.name ?? "Team member"} is now ${role === "Administrator" ? "an" : "a"} ${role}.`
     );
+    if (res.ok) load();
   }
 
-  function handleInvite(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const email = inviteEmail.trim().toLowerCase();
-    if (!email) return;
-
-    if (members.some((member) => member.email.toLowerCase() === email)) {
-      setNotice("That email already belongs to an active team member.");
-      return;
-    }
-
+  async function removeMember(id: string) {
+    const target = members.find((m) => m.id === id);
+    setActiveMenuId(null);
     if (
-      invitations.some((invitation) => invitation.email.toLowerCase() === email)
-    ) {
-      setNotice("An invitation for that email is already pending.");
+      !confirm(
+        `Remove ${target?.name ?? "this person"}'s access? They will be signed out immediately.`
+      )
+    )
       return;
-    }
+    setBusy(true);
+    const res = await removeTeamMember(id);
+    setBusy(false);
+    report(res, `${target?.name ?? "Team member"} no longer has access.`);
+    if (res.ok) load();
+  }
 
-    setInvitations((current) => [
-      {
-        id: Date.now(),
-        initials: getInitials(email.split("@")[0].replace(/[._-]/g, " ")),
-        email,
-        role: inviteRole,
-        invitedBy: "Admin Robert",
-        sentAt: "Just now",
-      },
-      ...current,
-    ]);
+  async function handleInvite(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    const res = await createInvitation(inviteEmail, inviteRole);
+    setBusy(false);
+    if (!res.ok) return setError(res.message);
+
+    setError(null);
+    setLastInviteLink(res.data.link);
     setInviteEmail("");
-    setInviteRole("Editor");
     setIsInviteOpen(false);
     setNotice(
-      `Invitation prepared for ${email}. Connect an invitation API to send the actual email.`
+      "Invitation created. Copy the link below and send it to them. It expires in 7 days."
     );
+    load();
   }
 
-  function cancelInvitation(id: number) {
-    const target = invitations.find((invitation) => invitation.id === id);
-    setInvitations((current) =>
-      current.filter((invitation) => invitation.id !== id)
+  async function cancelInvitation(id: string) {
+    const target = invitations.find((i) => i.id === id);
+    if (!confirm(`Cancel the invitation for ${target?.email}?`)) return;
+    const res = await cancelInvitationAction(id);
+    report(
+      res,
+      `Invitation for ${target?.email ?? "team member"} was cancelled.`
     );
-    setNotice(
-      `Invitation for ${target?.email ?? "team member"} was cancelled in this UI preview.`
-    );
+    if (res.ok) {
+      if (lastInviteLink === target?.link) setLastInviteLink(null);
+      load();
+    }
+  }
+
+  async function copyLink(link: string) {
+    try {
+      await navigator.clipboard.writeText(link);
+      setNotice("Invite link copied to clipboard.");
+    } catch {
+      setError(
+        "Couldn't copy automatically. Select the link and copy it manually."
+      );
+    }
   }
 
   return (
@@ -253,17 +249,42 @@ export default function TeamPermissionsPage() {
 
           <button
             type="button"
+            disabled={!canInvite || loading}
             onClick={() => {
               setIsInviteOpen(true);
               setNotice(null);
+              setError(null);
             }}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Invite Team Member
           </button>
         </div>
       </header>
+
+      {error && !isInviteOpen && (
+        <div
+          role="alert"
+          className="mb-6 flex items-start justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          <div className="flex items-start gap-3">
+            <CircleAlert
+              className="mt-0.5 h-5 w-5 shrink-0"
+              aria-hidden="true"
+            />
+            <p className="leading-6">{error}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="rounded p-1 hover:bg-red-100"
+            aria-label="Dismiss error"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
 
       {notice && (
         <div
@@ -280,7 +301,7 @@ export default function TeamPermissionsPage() {
           <button
             type="button"
             onClick={() => setNotice(null)}
-            className="rounded p-1 text-emerald-700 transition hover:bg-emerald-100"
+            className="rounded p-1 text-emerald-700 hover:bg-emerald-100"
             aria-label="Dismiss notification"
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -288,8 +309,24 @@ export default function TeamPermissionsPage() {
         </div>
       )}
 
+      {lastInviteLink && (
+        <div className="mb-6 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm sm:flex-row sm:items-center">
+          <code className="flex-1 truncate rounded bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
+            {lastInviteLink}
+          </code>
+          <button
+            type="button"
+            onClick={() => copyLink(lastInviteLink)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-gwc-navy px-3 py-1.5 text-xs font-semibold text-white"
+          >
+            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+            Copy link
+          </button>
+        </div>
+      )}
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {(Object.keys(roleDescriptions) as Role[]).map((role) => (
+        {ALL_ROLES.map((role) => (
           <div
             key={role}
             className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
@@ -299,7 +336,7 @@ export default function TeamPermissionsPage() {
                 {role}
               </span>
               <span className="text-2xl font-bold text-gwc-navy">
-                {roleCounts[role]}
+                {loading ? "–" : roleCounts[role]}
               </span>
             </div>
             <p className="mt-3 text-xs leading-5 text-slate-500">
@@ -310,21 +347,19 @@ export default function TeamPermissionsPage() {
       </section>
 
       <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-gwc-navy">
-              <Users className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div>
-              <h2 className="text-base font-semibold text-slate-800">
-                Active team members
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {members.length}{" "}
-                {members.length === 1 ? "person has" : "people have"} access to
-                this organization.
-              </p>
-            </div>
+        <div className="flex items-start gap-3 border-b border-slate-100 px-6 py-5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-gwc-navy">
+            <Users className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <h2 className="text-base font-semibold text-slate-800">
+              Active team members
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {loading
+                ? "Loading team…"
+                : `${members.length} ${members.length === 1 ? "person has" : "people have"} access to this organization.`}
+            </p>
           </div>
         </div>
 
@@ -340,90 +375,110 @@ export default function TeamPermissionsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {members.map((member) => (
-                <tr key={member.id} className="text-sm text-slate-600">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gwc-navy text-xs font-bold text-white">
-                        {member.initials}
-                      </span>
-                      <span>
-                        <span className="block font-semibold text-slate-800">
-                          {member.name}
+              {members.map((member) => {
+                const manageable = canManageMember(member);
+                return (
+                  <tr key={member.id} className="text-sm text-slate-600">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gwc-navy text-xs font-bold text-white">
+                          {getInitials(member.name)}
                         </span>
-                        <span className="mt-0.5 block text-xs text-slate-500">
-                          {member.email}
+                        <span>
+                          <span className="block font-semibold text-slate-800">
+                            {member.name}
+                            {member.isYou && (
+                              <span className="ml-2 text-xs font-normal text-slate-400">
+                                (you)
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-slate-500">
+                            {member.email}
+                          </span>
                         </span>
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <RoleBadge role={member.role} />
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      {member.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-xs text-slate-500">
-                    {member.lastActive}
-                  </td>
-                  <td className="relative px-6 py-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setActiveMenuId((current) =>
-                          current === member.id ? null : member.id
-                        )
-                      }
-                      className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-gwc-navy focus:outline-none focus:ring-2 focus:ring-gwc-navy/20"
-                      aria-label={`Manage ${member.name}`}
-                      aria-expanded={activeMenuId === member.id}
-                    >
-                      <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
-                    </button>
-
-                    {activeMenuId === member.id && (
-                      <div className="absolute right-6 z-10 mt-1 w-52 rounded-lg border border-slate-200 bg-white p-1 text-left shadow-lg">
-                        <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          Change role
-                        </p>
-                        {(Object.keys(roleDescriptions) as Role[]).map(
-                          (role) => (
-                            <button
-                              key={role}
-                              type="button"
-                              disabled={
-                                member.role === role || member.role === "Owner"
-                              }
-                              onClick={() => updateMemberRole(member.id, role)}
-                              className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              {role}
-                              {member.role === role && (
-                                <CheckCircle2
-                                  className="h-4 w-4 text-gwc-navy"
-                                  aria-hidden="true"
-                                />
-                              )}
-                            </button>
-                          )
-                        )}
-                        <div className="my-1 border-t border-slate-100" />
-                        <button
-                          type="button"
-                          disabled={member.role === "Owner"}
-                          onClick={() => removeMember(member.id)}
-                          className="w-full rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          Remove access
-                        </button>
                       </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-4">
+                      <RoleBadge role={member.role} />
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        Active
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-xs text-slate-500">
+                      {formatWhen(member.lastActive)}
+                    </td>
+                    <td className="relative px-6 py-4 text-right">
+                      <button
+                        type="button"
+                        disabled={!manageable || busy}
+                        onClick={() =>
+                          setActiveMenuId((cur) =>
+                            cur === member.id ? null : member.id
+                          )
+                        }
+                        className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-gwc-navy disabled:cursor-not-allowed disabled:opacity-30"
+                        aria-label={`Manage ${member.name}`}
+                        aria-expanded={activeMenuId === member.id}
+                      >
+                        <MoreHorizontal
+                          className="h-5 w-5"
+                          aria-hidden="true"
+                        />
+                      </button>
+
+                      {activeMenuId === member.id && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-10"
+                            onClick={() => setActiveMenuId(null)}
+                          />
+                          <div className="absolute right-6 z-20 mt-1 w-52 rounded-lg border border-slate-200 bg-white p-1 text-left shadow-lg">
+                            <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                              Change role
+                            </p>
+                            {ALL_ROLES.map((role) => (
+                              <button
+                                key={role}
+                                type="button"
+                                disabled={
+                                  busy ||
+                                  member.role === role ||
+                                  !canManageRole(myRole, LABEL_TO_ROLE[role])
+                                }
+                                onClick={() =>
+                                  updateMemberRole(member.id, role)
+                                }
+                                className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                {role}
+                                {member.role === role && (
+                                  <CheckCircle2
+                                    className="h-4 w-4 text-gwc-navy"
+                                    aria-hidden="true"
+                                  />
+                                )}
+                              </button>
+                            ))}
+                            <div className="my-1 border-t border-slate-100" />
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => removeMember(member.id)}
+                              className="w-full rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-40"
+                            >
+                              Remove access
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -439,45 +494,61 @@ export default function TeamPermissionsPage() {
               Pending invitations
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Invitations remain pending until a recipient accepts and activates
-              their account.
+              Invitations stay pending until the person accepts, or until they
+              expire after 7 days.
             </p>
           </div>
         </div>
 
         {invitations.length > 0 ? (
           <div className="divide-y divide-slate-100">
-            {invitations.map((invitation) => (
-              <div
-                key={invitation.id}
-                className="flex flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-gwc-navy">
-                    {invitation.initials}
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      {invitation.email}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Invited by {invitation.invitedBy} · {invitation.sentAt}
-                    </p>
+            {invitations.map((inv) => {
+              const manageable = canManageRole(myRole, LABEL_TO_ROLE[inv.role]);
+              return (
+                <div
+                  key={inv.id}
+                  className="flex flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-gwc-navy">
+                      {getInitials(
+                        inv.email.split("@")[0].replace(/[._-]/g, " ")
+                      )}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        {inv.email}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Invited by {inv.invitedBy} · {formatWhen(inv.sentAt)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 sm:justify-end">
+                    <RoleBadge role={inv.role} />
+                    {manageable && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => copyLink(inv.link)}
+                          className="text-sm font-semibold text-gwc-navy hover:underline"
+                        >
+                          Copy link
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => cancelInvitation(inv.id)}
+                          className="text-sm font-semibold text-red-700 transition hover:text-red-900"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3 sm:justify-end">
-                  <RoleBadge role={invitation.role} />
-                  <button
-                    type="button"
-                    onClick={() => cancelInvitation(invitation.id)}
-                    className="text-sm font-semibold text-red-700 transition hover:text-red-900"
-                  >
-                    Cancel invitation
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="px-6 py-10 text-center">
@@ -510,11 +581,15 @@ export default function TeamPermissionsPage() {
               </p>
             </div>
           </div>
-
           <div className="mt-5 space-y-4">
-            {(Object.keys(roleDescriptions) as Role[]).map((role) => (
-              <div key={role} className="flex gap-3">
-                <RoleBadge role={role} />
+            {ALL_ROLES.map((role) => (
+              <div
+                key={role}
+                className="grid gap-2 sm:grid-cols-[132px_minmax(0,1fr)] sm:items-start sm:gap-4"
+              >
+                <div className="pt-0.5">
+                  <RoleBadge role={role} />
+                </div>
                 <p className="text-sm leading-6 text-slate-500">
                   {roleDescriptions[role]}
                 </p>
@@ -531,14 +606,17 @@ export default function TeamPermissionsPage() {
             />
             <div>
               <h2 className="text-base font-semibold text-amber-900">
-                UI preview only
+                Access rules
               </h2>
-              <p className="mt-1 text-sm leading-6 text-amber-800">
-                Role changes, invitations, and access removal currently affect
-                only this screen. Connect your authentication, invitation, and
-                authorization backend before treating these actions as real
-                account controls.
-              </p>
+              <ul className="mt-2 space-y-1.5 text-sm leading-6 text-amber-800">
+                <li>Owners can manage Administrators, Editors, and Viewers.</li>
+                <li>Administrators can manage Editors and Viewers only.</li>
+                <li>
+                  Owner access can&apos;t be changed or removed from this page.
+                </li>
+                <li>You can&apos;t change your own role or remove yourself.</li>
+                <li>Every change is recorded in the audit log.</li>
+              </ul>
             </div>
           </div>
         </div>
@@ -561,12 +639,15 @@ export default function TeamPermissionsPage() {
                   Invite team member
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Prepare an invitation and assign the right level of access.
+                  Create an invite link and choose their level of access.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setIsInviteOpen(false)}
+                onClick={() => {
+                  setIsInviteOpen(false);
+                  setError(null);
+                }}
                 className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
                 aria-label="Close invite dialog"
               >
@@ -575,6 +656,12 @@ export default function TeamPermissionsPage() {
             </div>
 
             <form onSubmit={handleInvite} className="space-y-5 px-6 py-6">
+              {error && (
+                <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {error}
+                </p>
+              )}
+
               <label className="block">
                 <span className="text-sm font-semibold text-slate-700">
                   Email address
@@ -584,7 +671,7 @@ export default function TeamPermissionsPage() {
                   autoFocus
                   type="email"
                   value={inviteEmail}
-                  onChange={(event) => setInviteEmail(event.target.value)}
+                  onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="teammate@example.org"
                   className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
                 />
@@ -597,16 +684,16 @@ export default function TeamPermissionsPage() {
                 <span className="relative mt-2 block">
                   <select
                     value={inviteRole}
-                    onChange={(event) =>
-                      setInviteRole(
-                        event.target.value as Exclude<Role, "Owner">
-                      )
+                    onChange={(e) =>
+                      setInviteRole(e.target.value as InviteRole)
                     }
                     className="w-full appearance-none rounded-md border border-slate-200 bg-white px-3 py-2.5 pr-10 text-sm text-slate-800 outline-none focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
                   >
-                    <option value="Administrator">Administrator</option>
-                    <option value="Editor">Editor</option>
-                    <option value="Viewer">Viewer</option>
+                    {inviteOptions.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
                   </select>
                   <ChevronDown
                     className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
@@ -619,24 +706,28 @@ export default function TeamPermissionsPage() {
               </label>
 
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
-                This is a UI-only workflow. No invitation email will be sent
-                until an authentication and invitation backend is connected.
+                An invite link will be created for you to send. Automatic invite
+                emails will be added once email sending is set up.
               </div>
 
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  onClick={() => setIsInviteOpen(false)}
+                  onClick={() => {
+                    setIsInviteOpen(false);
+                    setError(null);
+                  }}
                   className="rounded-md border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+                  disabled={busy}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
                 >
                   <Mail className="h-4 w-4" aria-hidden="true" />
-                  Prepare Invitation
+                  {busy ? "Creating…" : "Create Invite Link"}
                 </button>
               </div>
             </form>

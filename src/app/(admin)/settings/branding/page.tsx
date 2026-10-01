@@ -1,6 +1,7 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { getBrandingSettings, saveBrandingSettings } from "../actions";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -39,8 +40,22 @@ export default function BrandingSettingsPage() {
   const [form, setForm] = useState<BrandingForm>(initialForm);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoName, setLogoName] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [removeLogoFlag, setRemoveLogoFlag] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    getBrandingSettings().then((res) => {
+      if (!res.ok) return setError(res.message);
+      const { logoUrl, ...rest } = res.data;
+      setForm(rest);
+      setLogoPreview(logoUrl);
+      setLogoName(logoUrl ? "Current logo" : null);
+    });
+  }, []);
 
   function updateField<K extends keyof BrandingForm>(
     field: K,
@@ -54,34 +69,60 @@ export default function BrandingSettingsPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
+    if (!["image/png", "image/jpeg", "image/svg+xml"].includes(file.type)) {
+      setError("Logo must be a PNG, JPG, or SVG file.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Logo must be under 2 MB.");
       event.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setLogoPreview(typeof reader.result === "string" ? reader.result : null);
-      setLogoName(file.name);
-      setIsSaved(false);
-    };
-    reader.readAsDataURL(file);
+    setError(null);
+    setLogoFile(file);
+    setRemoveLogoFlag(false);
+    setLogoPreview(URL.createObjectURL(file));
+    setLogoName(file.name);
+    setIsSaved(false);
   }
 
   function removeLogo() {
     setLogoPreview(null);
     setLogoName(null);
+    setLogoFile(null);
+    setRemoveLogoFlag(true);
     setIsSaved(false);
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setError(null);
 
-    // Replace with a server action or API request when branding persistence is ready.
+    const data = new FormData();
+    data.set("displayName", form.displayName);
+    data.set("primaryColor", form.primaryColor);
+    data.set("accentColor", form.accentColor);
+    data.set("footerText", form.footerText);
+    data.set("website", form.website);
+    data.set("removeLogo", String(removeLogoFlag));
+    if (logoFile) data.set("logo", logoFile);
+
+    const res = await saveBrandingSettings(data);
+    setSaving(false);
+
+    if (!res.ok) return setError(res.message);
+
+    const { logoUrl, ...rest } = res.data;
+    setForm(rest);
+    setLogoPreview(logoUrl);
+    setLogoName(logoUrl ? "Current logo" : null);
+    setLogoFile(null);
+    setRemoveLogoFlag(false);
     setIsSaved(true);
   }
 
@@ -118,13 +159,22 @@ export default function BrandingSettingsPage() {
           <button
             type="submit"
             form="branding-settings-form"
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2 disabled={saving}  disabled:opacity-60"
           >
             <Save className="h-4 w-4" aria-hidden="true" />
-            Save Changes
+            {saving ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </header>
+
+      {error && (
+        <div
+          role="alert"
+          className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {error}
+        </div>
+      )}
 
       {isSaved && (
         <div
@@ -135,13 +185,7 @@ export default function BrandingSettingsPage() {
             className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
             aria-hidden="true"
           />
-          <div>
-            <p className="font-semibold">Branding changes are ready to save</p>
-            <p className="mt-0.5 text-emerald-700">
-              Connect this form to your settings API or server action to persist
-              logo and branding updates.
-            </p>
-          </div>
+          <p className="font-semibold">Branding saved successfully.</p>
         </div>
       )}
 
@@ -491,10 +535,10 @@ export default function BrandingSettingsPage() {
         <div className="flex justify-end xl:col-span-2">
           <button
             type="submit"
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2 disabled={saving} disabled:opacity-60 "
           >
             <Save className="h-4 w-4" aria-hidden="true" />
-            Save Changes
+            {saving ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </form>

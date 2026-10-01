@@ -1,87 +1,58 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import {
-  MembersDirectory,
-  Member,
-} from "@/components/members/members-directory";
+import { useCallback, useEffect, useState } from "react";
+import { MembersDirectory, Member } from "@/components/members/members-directory";
 import { AddMemberModal } from "@/components/members/add-member-modal";
-import {
-  CreateCategoryModal,
-  Category,
-} from "@/components/members/create-category-modal";
+import { CreateCategoryModal, Category } from "@/components/members/create-category-modal";
 import { EditMemberPage } from "@/components/members/edit-member-page";
+import {
+  listMembers,
+  listCategories,
+  getMemberProfile,
+  createMember,
+  updateMember,
+  removeMember,
+  createCategory,
+  type MemberFormData,
+} from "./actions";
 
-const MOCK_MEMBERS: Member[] = [
-  {
-    id: "1",
-    memberId: "#GW-1042",
-    name: "Martha Jenkins",
-    email: "martha.j@example.com",
-    phone: "(555) 123-4567",
-    categories: ["Voices of Glory", "Women's Min"],
-    status: "active",
-  },
-  {
-    id: "2",
-    memberId: "#GW-0015",
-    name: "Deacon Robert Smith",
-    email: "r.smith@gloryworship.org",
-    phone: "(555) 987-6543",
-    categories: ["Elders Council"],
-    status: "active",
-  },
-  {
-    id: "3",
-    memberId: "#GW-2109",
-    name: "Chloe Williams",
-    email: "chloe.w@example.com",
-    categories: [],
-    status: "visitor",
-  },
-];
-
-function generateMemberId(existing: Member[]): string {
-  const nums = existing
-    .map((m) => parseInt(m.memberId.replace("#GW-", ""), 10))
-    .filter((n) => !isNaN(n));
-  const next = (nums.length ? Math.max(...nums) : 0) + 1;
-  return `#GW-${String(next).padStart(4, "0")}`;
-}
+const PAGE_SIZE = 10;
 
 export default function MembersPage() {
-  const [members, setMembers] = useState<Member[]>(MOCK_MEMBERS);
-  const [categories, setCategories] = useState<Category[]>([
-    { name: "Voices of Glory", description: "" },
-    { name: "Women's Min", description: "" },
-    { name: "Elders Council", description: "" },
-  ]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [total, setTotal] = useState(0);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [page, setPage] = useState(1);
   const [roleFilter, setRoleFilter] = useState("All Members");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [editing, setEditing] = useState<{ id: string; data: MemberFormData } | null>(null);
   const [viewMode, setViewMode] = useState<"edit" | "view">("edit");
+  const [message, setMessage] = useState<string | null>(null);
 
-  const pageSize = 3;
+  const loadMembers = useCallback(async () => {
+    const res = await listMembers({ page, pageSize: PAGE_SIZE, status: roleFilter, category: categoryFilter });
+    if (res.ok) {
+      setMembers(res.data.members);
+      setTotal(res.data.total);
+    } else {
+      setMessage(res.message);
+    }
+  }, [page, roleFilter, categoryFilter]);
 
-  const filteredMembers = useMemo(() => {
-    return members.filter((m) => {
-      const roleMatch =
-        roleFilter === "All Members" ||
-        m.status.toLowerCase() === roleFilter.toLowerCase();
-      const categoryMatch =
-        categoryFilter === "All Categories" ||
-        m.categories.includes(categoryFilter);
-      return roleMatch && categoryMatch;
-    });
-  }, [members, roleFilter, categoryFilter]);
+  const loadCategories = useCallback(async () => {
+    const res = await listCategories();
+    if (res.ok) setCategories(res.data);
+  }, []);
 
-  const paginatedMembers = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredMembers.slice(start, start + pageSize);
-  }, [filteredMembers, page, pageSize]);
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
 
   const handleRoleFilterChange = (role: string) => {
     setRoleFilter(role);
@@ -93,100 +64,78 @@ export default function MembersPage() {
     setPage(1);
   };
 
-  const handleAddMember = (newMember: Omit<Member, "id" | "memberId">) => {
-    const member: Member = {
-      ...newMember,
-      id: crypto.randomUUID(),
-      memberId: generateMemberId(members),
-    };
-    setMembers((prev) => [member, ...prev]);
+  const handleAddMember = async (newMember: Omit<Member, "id" | "memberId">) => {
+    setMessage(null);
+    const res = await createMember(newMember);
+    if (!res.ok) return setMessage(res.message);
+    setPage(1);
+    await loadMembers();
   };
 
-  const handleCreateCategory = (category: Category) => {
-    setCategories((prev) => [...prev, category]);
+  const handleCreateCategory = async (category: Category) => {
+    setMessage(null);
+    const res = await createCategory(category);
+    if (!res.ok) return setMessage(res.message);
+    await loadCategories();
   };
 
-  const handleMemberAction = (action: string, member: Member) => {
+  const handleMemberAction = async (action: string, member: Member) => {
+    setMessage(null);
+
     if (action === "Remove Member") {
-      setMembers((prev) => prev.filter((m) => m.id !== member.id));
+      if (!confirm(`Remove ${member.name}? This permanently deletes their record.`)) return;
+      const res = await removeMember(member.id);
+      if (!res.ok) return setMessage(res.message);
+      await loadMembers();
       return;
     }
-    if (action === "Edit Member") {
-      setViewMode("edit");
-      setEditingMember(member);
-      return;
+
+    if (action === "Edit Member" || action === "View Profile") {
+      const res = await getMemberProfile(member.id);
+      if (!res.ok) return setMessage(res.message);
+      setViewMode(action === "View Profile" ? "view" : "edit");
+      setEditing({ id: member.id, data: res.data });
     }
-    if (action === "View Profile") {
-      setViewMode("view");
-      setEditingMember(member);
-      return;
-    }
-    console.log(action, member);
   };
 
-  const handleSaveEdit = (formData: {
-    fullName: string;
-    email: string;
-    phone: string;
-    categories: string[];
-    status: string;
-  }) => {
-    if (!editingMember) return;
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.id === editingMember.id
-          ? {
-              ...m,
-              name: formData.fullName,
-              email: formData.email,
-              phone: formData.phone,
-              categories: formData.categories,
-              status: formData.status.toLowerCase() as Member["status"],
-            }
-          : m
-      )
-    );
-    setEditingMember(null);
+  const handleSaveEdit = async (formData: Partial<MemberFormData>) => {
+    if (!editing) return;
+    setMessage(null);
+    const res = await updateMember(editing.id, formData);
+    if (!res.ok) return setMessage(res.message);
+    setEditing(null);
+    await loadMembers();
   };
 
-  if (editingMember) {
+  const banner = message && (
+    <div role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      {message}
+    </div>
+  );
+
+  if (editing) {
     return (
-      <EditMemberPage
-        readOnly={viewMode === "view"}
-        initialData={{
-          fullName: editingMember.name,
-          email: editingMember.email,
-          phone: editingMember.phone ?? "",
-          dateOfBirth: "",
-          gender: "Female",
-          streetAddress: "",
-          city: "",
-          state: "",
-          postalCode: "",
-          country: "United States",
-          membershipType: "Regular Member",
-          status:
-            editingMember.status.charAt(0).toUpperCase() +
-            editingMember.status.slice(1),
-          joinDate: "",
-          renewalDate: "",
-          categories: editingMember.categories,
-          notes: "",
-        }}
-        availableCategories={categories.map((c) => c.name)}
-        onCancel={() => setEditingMember(null)}
-        onSave={handleSaveEdit}
-      />
+      <>
+        {banner}
+        <EditMemberPage
+          readOnly={viewMode === "view"}
+          initialData={editing.data}
+          availableCategories={categories.map((c) => c.name)}
+          onCancel={() => setEditing(null)}
+          onSave={handleSaveEdit}
+        />
+      </>
     );
   }
 
   return (
     <>
+      {banner}
       <MembersDirectory
-        members={paginatedMembers}
-        total={filteredMembers.length}
+        members={members}
+        total={total}
         page={page}
-        pageSize={pageSize}
+        pageSize={PAGE_SIZE}
         roleFilter={roleFilter}
         categoryFilter={categoryFilter}
         availableCategories={categories.map((c) => c.name)}

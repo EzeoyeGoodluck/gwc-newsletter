@@ -2,27 +2,54 @@
 
 import { createContext, useContext, useState, ReactNode } from "react";
 
-interface ChurchBranding {
+export interface ChurchBranding {
   name: string;
   subtitle: string;
   logoUrl: string;
+  primaryColor: string;
+  accentColor: string;
 }
 
 interface BrandingContextValue {
   branding: ChurchBranding;
-  setBranding: (branding: ChurchBranding) => void;
+  setBranding: (update: Partial<ChurchBranding>) => void;
 }
 
-const defaultBranding: ChurchBranding = {
+export const defaultBranding: ChurchBranding = {
   name: "Glory Worship Church",
   subtitle: "Sanctuary CMS",
   logoUrl: "/church-logo.svg",
+  primaryColor: "#06385B",
+  accentColor: "#F6C84C",
 };
 
-const BrandingContext = createContext<BrandingContextValue | undefined>(undefined);
+const BrandingContext = createContext<BrandingContextValue | undefined>(
+  undefined
+);
 
-export function BrandingProvider({ children }: { children: ReactNode }) {
-  const [branding, setBranding] = useState<ChurchBranding>(defaultBranding);
+export function BrandingProvider({
+  initial,
+  children,
+}: {
+  initial?: Partial<ChurchBranding>;
+  children: ReactNode;
+}) {
+  const [branding, setState] = useState<ChurchBranding>({
+    ...defaultBranding,
+    ...initial,
+    logoUrl: initial?.logoUrl || defaultBranding.logoUrl,
+  });
+
+  const setBranding = (update: Partial<ChurchBranding>) =>
+    setState((current) => ({
+      ...current,
+      ...update,
+      logoUrl:
+        "logoUrl" in update
+          ? update.logoUrl || defaultBranding.logoUrl
+          : current.logoUrl,
+    }));
+
   return (
     <BrandingContext.Provider value={{ branding, setBranding }}>
       {children}

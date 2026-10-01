@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { GoldButton } from "@/components/ui/gold-button";
 import { cn } from "cn";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useBranding } from "@/lib/branding-context";
 
 const mainNavItems = [
@@ -34,6 +34,7 @@ export function SideNavBar() {
   const pathname = usePathname();
   const [logoError, setLogoError] = useState(false);
   const { branding } = useBranding();
+  useEffect(() => setLogoError(false), [branding.logoUrl]);
 
   return (
     <aside
@@ -55,6 +56,8 @@ export function SideNavBar() {
                 height={32}
                 className="rounded-full object-cover"
                 onError={() => setLogoError(true)}
+                key={branding.logoUrl}
+                unoptimized
               />
             )}
           </div>

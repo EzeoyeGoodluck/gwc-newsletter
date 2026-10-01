@@ -1,6 +1,8 @@
 "use client";
+import { FormEvent, useEffect, useState } from "react";
+import { getOrganizationSettings, saveOrganizationSettings } from "../actions";
+import { useBranding } from "@/lib/branding-context";
 
-import { FormEvent, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -26,6 +28,14 @@ const timeZones = [
   "Asia/Kolkata",
   "Asia/Singapore",
   "Australia/Sydney",
+];
+
+const languages = [
+  { value: "en-US", label: "English (United States)" },
+  { value: "en-GB", label: "English (United Kingdom)" },
+  { value: "fr", label: "French" },
+  { value: "es", label: "Spanish" },
+  { value: "pt", label: "Portuguese" },
 ];
 
 type OrganizationForm = {
@@ -61,6 +71,18 @@ const initialForm: OrganizationForm = {
 export default function OrganizationSettingsPage() {
   const [form, setForm] = useState<OrganizationForm>(initialForm);
   const [isSaved, setIsSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { setBranding } = useBranding();
+
+  useEffect(() => {
+    getOrganizationSettings().then((res) => {
+      setLoading(false);
+      if (!res.ok) return setError(res.message);
+      setForm(res.data);
+    });
+  }, []);
 
   function updateField<K extends keyof OrganizationForm>(
     field: K,
@@ -70,12 +92,25 @@ export default function OrganizationSettingsPage() {
     setIsSaved(false);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setError(null);
 
-    // Replace with a server action or API request when persistence is ready.
+    const res = await saveOrganizationSettings(form);
+    setSaving(false);
+
+    if (!res.ok) return setError(res.message);
+
+    setForm(res.data);
+    setBranding({ name: res.data.organizationName });
     setIsSaved(true);
   }
+
+  const timeZoneOptions = timeZones.includes(form.timeZone)
+    ? timeZones
+    : [form.timeZone, ...timeZones];
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-8 lg:px-10">
@@ -111,6 +146,15 @@ export default function OrganizationSettingsPage() {
         </div>
       </header>
 
+      {error && (
+        <div
+          role="alert"
+          className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {error}
+        </div>
+      )}
+
       {isSaved && (
         <div
           role="status"
@@ -120,13 +164,7 @@ export default function OrganizationSettingsPage() {
             className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
             aria-hidden="true"
           />
-          <div>
-            <p className="font-semibold">Changes ready to save</p>
-            <p className="mt-0.5 text-emerald-700">
-              This interface is ready. Connect the form to your settings API or
-              server action to persist these changes.
-            </p>
-          </div>
+          <p className="font-semibold">Organization profile saved.</p>
         </div>
       )}
 
@@ -331,7 +369,7 @@ export default function OrganizationSettingsPage() {
                 }
                 className="mt-2 w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
               >
-                {timeZones.map((timeZone) => (
+                {timeZoneOptions.map((timeZone) => (
                   <option key={timeZone} value={timeZone}>
                     {timeZone}
                   </option>
@@ -350,11 +388,11 @@ export default function OrganizationSettingsPage() {
                 }
                 className="mt-2 w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
               >
-                <option>English (United States)</option>
-                <option>English (United Kingdom)</option>
-                <option>French</option>
-                <option>Spanish</option>
-                <option>Portuguese</option>
+                {languages.map((lang) => (
+                  <option key={lang.value} value={lang.value}>
+                    {lang.label}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -375,10 +413,10 @@ export default function OrganizationSettingsPage() {
           <button
             type="submit"
             form="organization-settings-form"
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2  disabled={saving || loading} disabled:opacity-60"
           >
             <Save className="h-4 w-4" aria-hidden="true" />
-            Save Changes
+            {saving ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </form>

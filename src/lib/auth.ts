@@ -5,6 +5,8 @@ import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 
+const CLAIM_WINDOW_MS = 60_000;
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "mysql" }),
 
@@ -47,8 +49,9 @@ export const auth = betterAuth({
               email: user.email.toLowerCase(),
               status: "PENDING",
               expiresAt: { gt: new Date() },
-              claimedAt: { gt: new Date(Date.now() - 60_000) },
+              claimedAt: { gt: new Date(Date.now() - CLAIM_WINDOW_MS) },
             },
+            orderBy: { claimedAt: "desc" },
           });
 
           if (!invitation) {
@@ -59,6 +62,41 @@ export const auth = betterAuth({
           }
 
           return { data: { ...user, role: invitation.role } };
+        },
+
+        after: async (user) => {
+          const email = user.email.toLowerCase();
+
+          const invitation = await prisma.invitation.findFirst({
+            where: {
+              email,
+              status: "PENDING",
+              claimedAt: { gt: new Date(Date.now() - CLAIM_WINDOW_MS) },
+            },
+            orderBy: { claimedAt: "desc" },
+          });
+
+          if (!invitation) return;
+
+          await prisma.invitation.update({
+            where: { id: invitation.id },
+            data: { status: "ACCEPTED", acceptedAt: new Date() },
+          });
+
+          await prisma.invitation.updateMany({
+            where: { email, status: "PENDING", id: { not: invitation.id } },
+            data: { status: "CANCELLED" },
+          });
+
+          await prisma.auditLog.create({
+            data: {
+              actorId: user.id,
+              action: "team.invite.accept",
+              entityType: "Invitation",
+              entityId: invitation.id,
+              details: { email, role: invitation.role },
+            },
+          });
         },
       },
     },

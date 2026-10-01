@@ -1,26 +1,35 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { AdminShell } from "@/components/layout/admin-shell";
+import { requireUser } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
+import { AdminShell } from "@/components/layout/admin-shell"; // keep your existing path
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
+  const user = await requireUser();
+
+  const settings = await prisma.churchSettings.upsert({
+    where: { id: "default" },
+    update: {},
+    create: { id: "default" },
   });
 
-  if (!session) {
-    redirect("/login");
-  }
-
-  const user = {
-    name: session.user.name,
-    email: session.user.email,
-    role: session.user.role ?? "VIEWER",
-  };
-
-  return <AdminShell user={user}>{children}</AdminShell>;
+  return (
+    <AdminShell
+      user={{
+        name: user.name ?? "",
+        email: user.email ?? "",
+        role: user.role ?? "VIEWER",
+      }}
+      branding={{
+        name: settings.name,
+        logoUrl: settings.logoUrl ?? undefined,
+        primaryColor: settings.primaryColor,
+        accentColor: settings.accentColor,
+      }}
+    >
+      {children}
+    </AdminShell>
+  );
 }

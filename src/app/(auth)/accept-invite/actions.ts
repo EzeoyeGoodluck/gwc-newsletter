@@ -14,6 +14,10 @@ export async function acceptInvitation(formData: FormData): Promise<Result> {
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
+  if (!name) {
+    return { ok: false, message: "Please enter your full name." };
+  }
+
   if (password !== confirmPassword) {
     return {
       ok: false,
@@ -34,6 +38,17 @@ export async function acceptInvitation(formData: FormData): Promise<Result> {
     };
   }
 
+  const existing = await prisma.user.findUnique({
+    where: { email: invitation.email },
+  });
+  if (existing) {
+    return {
+      ok: false,
+      message:
+        "An account with this email already exists. Please sign in instead.",
+    };
+  }
+
   await prisma.invitation.update({
     where: { id: invitation.id },
     data: { claimedAt: new Date() },
@@ -45,6 +60,11 @@ export async function acceptInvitation(formData: FormData): Promise<Result> {
       headers: await headers(),
     });
   } catch (error) {
+    await prisma.invitation.update({
+      where: { id: invitation.id },
+      data: { claimedAt: null },
+    });
+
     const message =
       error instanceof APIError
         ? (error.body?.message ?? error.message)
@@ -52,10 +72,6 @@ export async function acceptInvitation(formData: FormData): Promise<Result> {
     return { ok: false, message };
   }
 
-  await prisma.invitation.update({
-    where: { id: invitation.id },
-    data: { status: "ACCEPTED", acceptedAt: new Date() },
-  });
-
+  // The "after" hook in auth.ts marks the invitation ACCEPTED and writes the audit log.
   return { ok: true };
 }

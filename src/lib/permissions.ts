@@ -18,6 +18,8 @@ const PERMISSIONS = {
   "subscribers.manage": ["OWNER", "ADMIN"],
   "team.manage": ["OWNER", "ADMIN"],
   "settings.manage": ["OWNER", "ADMIN"],
+  "members.view": ["OWNER", "ADMIN", "EDITOR"],
+  "members.manage": ["OWNER", "ADMIN"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

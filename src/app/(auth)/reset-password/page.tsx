@@ -2,7 +2,6 @@ import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { ResetPasswordForm } from "./reset-password-form";
 
-
 export default async function ResetPasswordPage({
   searchParams,
 }: {

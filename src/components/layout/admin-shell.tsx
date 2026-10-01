@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { SideNavBar } from "@/components/layout/side-nav-bar";
 import { TopAppBar } from "@/components/layout/top-app-bar";
-import { BrandingProvider } from "@/lib/branding-context";
+import { BrandingProvider, ChurchBranding } from "@/lib/branding-context";
 
 export type SessionUser = {
   name: string;
@@ -13,15 +13,17 @@ export type SessionUser = {
 
 export function AdminShell({
   user,
+  branding,
   children,
 }: {
   user: SessionUser;
+  branding: Partial<ChurchBranding>;
   children: React.ReactNode;
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <BrandingProvider>
+    <BrandingProvider initial={branding}>
       <div className="flex min-h-screen bg-gwc-surface">
         <div className="hidden md:block">
           <SideNavBar />

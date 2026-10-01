@@ -107,29 +107,53 @@ enum DeliveryStatus {
 }
 
 model ChurchSettings {
-  id           String   @id @default("default")
-  name         String   @default("Glory Worship Church")
-  email        String?
-  phone        String?
-  address      String?  @db.Text
-  website      String?
-  logoUrl      String?  @db.Text
-  primaryColor String   @default("#1B2A4A")
-  accentColor  String   @default("#F6C84C")
-  timezone     String   @default("UTC")
-  senderName   String?
-  senderEmail  String?
-  replyTo      String?
-  footerText   String?  @db.Text
-  updatedAt    DateTime @updatedAt
-}
+  id            String   @id @default("default")
+  name          String   @default("Glory Worship Church")
+  email         String?
+  phone         String?
+  website       String?
+  logoUrl       String?  @db.Text
+  primaryColor  String   @default("#1B2A4A")
+  accentColor   String   @default("#F6C84C")
 
+  // Address
+  address       String?  @db.Text
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  stateProvince String?
+  postalCode    String?
+  country       String?
+
+  // Regional
+  timezone      String   @default("UTC")
+  language      String   @default("en-US")
+
+  // Email sending
+  senderName    String?
+  senderEmail   String?
+  replyTo       String?
+  footerText    String?  @db.Text
+
+  updatedAt     DateTime @updatedAt
+}
 model Member {
   id               String        @id @default(cuid())
-  firstName        String
-  lastName         String?
+  memberNumber     Int           @unique
+  name             String
   email            String        @unique
   phone            String?
+  membershipStatus String        @default("active")
+  membershipType   String?
+  gender           String?
+  dateOfBirth      DateTime?
+  streetAddress    String?
+  city             String?
+  state            String?
+  postalCode       String?
+  country          String?
+  joinDate         DateTime?
+  renewalDate      DateTime?
   status           MemberStatus  @default(SUBSCRIBED)
   source           String?
   consentAt        DateTime?
@@ -143,6 +167,7 @@ model Member {
   deliveries       Delivery[]
 
   @@index([status])
+  @@index([membershipStatus])
 }
 
 model Group {
@@ -167,18 +192,22 @@ model MemberGroup {
 }
 
 model Template {
-  id          String       @id @default(cuid())
-  name        String
-  description String?      @db.Text
-  design      Json?
-  html        String?      @db.LongText
-  isDefault   Boolean      @default(false)
-  createdById String?
-  createdBy   User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  newsletters Newsletter[]
+  id           String       @id @default(cuid())
+  name         String
+  description  String?      @db.Text
+  category     String       @default("General")
+  thumbnailUrl String?      @db.VarChar(1000)
+  isPopular    Boolean      @default(false)
+  design       Json?
+  html         String?      @db.LongText
+  isDefault    Boolean      @default(false)
+  createdById  String?
+  createdBy    User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  newsletters  Newsletter[]
 }
+
 
 model Newsletter {
   id             String            @id @default(cuid())
