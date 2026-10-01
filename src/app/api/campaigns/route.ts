@@ -1,108 +1,87 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { Prisma, type NewsletterStatus } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { requireApiPermission } from "@/lib/api-auth";
+import {
+  CAMPAIGNS_PAGE_SIZE,
+  type Campaign,
+  type CampaignStatus,
+  type CampaignsResponse,
+} from "@/lib/types/dashboard";
 
-interface Campaign {
-  id: string;
-  title: string;
-  campaignId: string;
-  status: "draft" | "scheduled" | "sent";
-  category: string;
-  lastEdited: string;
+const PAGE_SIZE = CAMPAIGNS_PAGE_SIZE;
+
+const STATUS_TO_DB: Record<CampaignStatus, NewsletterStatus[]> = {
+  draft: ["DRAFT", "FAILED"],
+  scheduled: ["SCHEDULED", "SENDING"],
+  sent: ["SENT"],
+};
+
+function toUiStatus(status: NewsletterStatus): CampaignStatus {
+  if (status === "SENT") return "sent";
+  if (status === "SCHEDULED" || status === "SENDING") return "scheduled";
+  return "draft";
 }
 
-const ALL_CAMPAIGNS: Campaign[] = [
-  {
-    id: "1",
-    title: "Easter Sunday Preparations",
-    campaignId: "CMP-2024-04-A",
-    status: "draft",
-    category: "General",
-    lastEdited: "Today, 9:45 AM",
-  },
-  {
-    id: "2",
-    title: "Youth Ministry Summer Retreat",
-    campaignId: "CMP-2024-04-B",
-    status: "scheduled",
-    category: "Students",
-    lastEdited: "Yesterday, 4:20 PM",
-  },
-  {
-    id: "3",
-    title: "Volunteer Schedule - Q2 Updates",
-    campaignId: "CMP-2024-03-Z",
-    status: "sent",
-    category: "Workers",
-    lastEdited: "Mar 28, 2024",
-  },
-  {
-    id: "4",
-    title: "Weekly Bulletin - April Week 2",
-    campaignId: "CMP-2024-04-C",
-    status: "sent",
-    category: "General",
-    lastEdited: "Apr 8, 2024",
-  },
-  {
-    id: "5",
-    title: "Mission Trip Fundraiser Update",
-    campaignId: "CMP-2024-03-Y",
-    status: "sent",
-    category: "General",
-    lastEdited: "Mar 22, 2024",
-  },
-  {
-    id: "6",
-    title: "New Members Welcome Letter",
-    campaignId: "CMP-2024-04-D",
-    status: "draft",
-    category: "General",
-    lastEdited: "2 days ago",
-  },
-  {
-    id: "7",
-    title: "Choir Rehearsal Schedule Change",
-    campaignId: "CMP-2024-04-E",
-    status: "scheduled",
-    category: "Workers",
-    lastEdited: "3 days ago",
-  },
-  {
-    id: "8",
-    title: "Community Outreach Signup",
-    campaignId: "CMP-2024-03-X",
-    status: "sent",
-    category: "General",
-    lastEdited: "Mar 15, 2024",
-  },
-];
-
 export async function GET(request: Request) {
+  const { error } = await requireApiPermission(request, "newsletters.view");
+  if (error) return error;
+
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
-  const category = searchParams.get("category");
-  const page = parseInt(searchParams.get("page") ?? "1", 10);
-  const pageSize = 3;
+  const categories = (searchParams.get("categories") ?? "")
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
+  const search = (searchParams.get("search") ?? "").trim();
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
 
-  let filtered = ALL_CAMPAIGNS;
-  if (status && status !== "all")
-    filtered = filtered.filter((c) => c.status === status);
-  if (category && category !== "all")
-    filtered = filtered.filter((c) => c.category === category);
+  const where: Prisma.NewsletterWhereInput = {};
 
-  const start = (page - 1) * pageSize;
-  const paged = filtered.slice(start, start + pageSize);
+  if (status && status in STATUS_TO_DB) {
+    where.status = { in: STATUS_TO_DB[status as CampaignStatus] };
+  }
+  if (categories.length > 0) {
+    where.category = { in: categories };
+  }
+  if (search) {
+    where.OR = [
+      { title: { contains: search } },
+      { subject: { contains: search } },
+    ];
+  }
 
-  return NextResponse.json({
-    campaigns: paged.map((c) => ({
-      id: c.id,
-      title: c.title,
-      campaignId: c.campaignId,
-      status: c.status,
-      category: c.category,
-      lastEdited: c.lastEdited,
-    })),
-    total: filtered.length,
+  const [total, rows] = await prisma.$transaction([
+    prisma.newsletter.count({ where }),
+    prisma.newsletter.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        category: true,
+        updatedAt: true,
+      },
+    }),
+  ]);
+
+  const campaigns: Campaign[] = rows.map((n) => ({
+    id: n.id,
+    campaignId: `NL-${n.id.slice(-6).toUpperCase()}`,
+    title: n.title,
+    status: toUiStatus(n.status),
+    category: n.category ?? "General",
+    lastEdited: n.updatedAt.toISOString(),
+  }));
+
+  const body: CampaignsResponse = {
+    campaigns,
+    total,
     page,
-    pageSize,
-  });
+    pageSize: PAGE_SIZE,
+  };
+  return NextResponse.json(body);
 }

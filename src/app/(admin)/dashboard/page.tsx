@@ -16,9 +16,10 @@ import {
   Campaign,
   DashboardMetrics,
   CampaignStatus,
+  CAMPAIGNS_PAGE_SIZE,
 } from "@/lib/types/dashboard";
 
-const PAGE_SIZE = 3;
+const PAGE_SIZE = CAMPAIGNS_PAGE_SIZE;
 
 export default function DashboardPage() {
   const router = useRouter();

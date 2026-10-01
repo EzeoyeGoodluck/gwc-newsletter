@@ -6,17 +6,22 @@ datasource db {
   provider = "mysql"
 }
 
+// ─────────────────────────────── AUTH ───────────────────────────────
+
 model User {
-  id            String    @id
+  id            String       @id
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
-  image         String?   @db.Text
-  role          String    @default("MEMBER")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  email         String       @unique
+  emailVerified Boolean      @default(false)
+  image         String?      @db.Text
+  role          String       @default("VIEWER")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   sessions      Session[]
   accounts      Account[]
+  templates     Template[]
+  newsletters   Newsletter[]
+  auditLogs     AuditLog[]
 }
 
 model Session {
@@ -63,7 +68,6 @@ model Verification {
   @@index([identifier])
 }
 
-
 model Invitation {
   id          String    @id @default(cuid())
   email       String
@@ -77,4 +81,174 @@ model Invitation {
   createdAt   DateTime  @default(now())
 
   @@index([email])
+}
+
+// ─────────────────────────────── CMS ────────────────────────────────
+
+enum MemberStatus {
+  SUBSCRIBED
+  UNSUBSCRIBED
+  BOUNCED
+}
+
+enum NewsletterStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+}
+
+enum DeliveryStatus {
+  QUEUED
+  SENT
+  FAILED
+  BOUNCED
+}
+
+model ChurchSettings {
+  id           String   @id @default("default")
+  name         String   @default("Glory Worship Church")
+  email        String?
+  phone        String?
+  address      String?  @db.Text
+  website      String?
+  logoUrl      String?  @db.Text
+  primaryColor String   @default("#1B2A4A")
+  accentColor  String   @default("#F6C84C")
+  timezone     String   @default("UTC")
+  senderName   String?
+  senderEmail  String?
+  replyTo      String?
+  footerText   String?  @db.Text
+  updatedAt    DateTime @updatedAt
+}
+
+model Member {
+  id               String        @id @default(cuid())
+  firstName        String
+  lastName         String?
+  email            String        @unique
+  phone            String?
+  status           MemberStatus  @default(SUBSCRIBED)
+  source           String?
+  consentAt        DateTime?
+  consentSource    String?
+  unsubscribedAt   DateTime?
+  unsubscribeToken String        @unique @default(cuid())
+  notes            String?       @db.Text
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  groups           MemberGroup[]
+  deliveries       Delivery[]
+
+  @@index([status])
+}
+
+model Group {
+  id          String            @id @default(cuid())
+  name        String            @unique
+  description String?           @db.Text
+  color       String?
+  createdAt   DateTime          @default(now())
+  members     MemberGroup[]
+  newsletters NewsletterGroup[]
+}
+
+model MemberGroup {
+  memberId String
+  groupId  String
+  addedAt  DateTime @default(now())
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([memberId, groupId])
+  @@index([groupId])
+}
+
+model Template {
+  id          String       @id @default(cuid())
+  name        String
+  description String?      @db.Text
+  design      Json?
+  html        String?      @db.LongText
+  isDefault   Boolean      @default(false)
+  createdById String?
+  createdBy   User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  newsletters Newsletter[]
+}
+
+model Newsletter {
+  id             String            @id @default(cuid())
+  title          String
+  subject        String
+  previewText    String?
+  content        Json?
+  html           String?           @db.LongText
+  status         NewsletterStatus  @default(DRAFT)
+  category       String?
+  sendToAll      Boolean           @default(true)
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  recipientCount Int               @default(0)
+  sentCount      Int               @default(0)
+  failedCount    Int               @default(0)
+  openCount      Int               @default(0)
+  clickCount     Int               @default(0)
+  templateId     String?
+  template       Template?         @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  authorId       String?
+  author         User?             @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  groups         NewsletterGroup[]
+  deliveries     Delivery[]
+
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([category])
+}
+
+model NewsletterGroup {
+  newsletterId String
+  groupId      String
+  newsletter   Newsletter @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
+  group        Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([newsletterId, groupId])
+}
+
+model Delivery {
+  id           String         @id @default(cuid())
+  newsletterId String
+  memberId     String?
+  email        String
+  status       DeliveryStatus @default(QUEUED)
+  error        String?        @db.Text
+  trackingId   String         @unique @default(cuid())
+  sentAt       DateTime?
+  openedAt     DateTime?
+  clickedAt    DateTime?
+  createdAt    DateTime       @default(now())
+  newsletter   Newsletter     @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
+  member       Member?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@unique([newsletterId, email])
+  @@index([newsletterId, status])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
