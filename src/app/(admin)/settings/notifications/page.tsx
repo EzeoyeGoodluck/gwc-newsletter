@@ -1,29 +1,25 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
   Bell,
   CheckCircle2,
+  CircleAlert,
   Clock3,
   Mail,
   Save,
   Send,
   ShieldCheck,
 } from "lucide-react";
+import {
+  getCommunicationSettings,
+  saveCommunicationSettings,
+  CommunicationSettings,
+} from "../actions";
 
-type CommunicationForm = {
-  senderName: string;
-  senderEmail: string;
-  replyToEmail: string;
-  sendingTimeZone: string;
-  unsubscribeText: string;
-  sendSuccessAlerts: boolean;
-  sendFailureAlerts: boolean;
-  notificationRecipients: string;
-  sendTestCopy: boolean;
-};
+type CommunicationForm = CommunicationSettings;
 
 const timeZones = [
   "America/New_York",
@@ -42,28 +38,32 @@ const timeZones = [
   "Australia/Sydney",
 ];
 
-const initialForm: CommunicationForm = {
-  senderName: "Glory Worship Church",
-  senderEmail: "newsletter@gloryworshipchurch.org",
-  replyToEmail: "hello@gloryworshipchurch.org",
-  sendingTimeZone: "America/Chicago",
-  unsubscribeText:
-    "You are receiving this email because you are connected with Glory Worship Church. You may update your communication preferences or unsubscribe at any time.",
+const emptyForm: CommunicationForm = {
+  senderName: "",
+  senderEmail: "",
+  replyToEmail: "",
+  sendingTimeZone: "UTC",
+  unsubscribeText: "",
   sendSuccessAlerts: true,
   sendFailureAlerts: true,
-  notificationRecipients: "admin@gloryworshipchurch.org",
+  notificationRecipients: "",
   sendTestCopy: true,
 };
+
+const inputClass =
+  "mt-2 w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10 disabled:bg-slate-50";
 
 function ToggleRow({
   title,
   description,
   checked,
+  disabled,
   onChange,
 }: {
   title: string;
   description: string;
   checked: boolean;
+  disabled?: boolean;
   onChange: (checked: boolean) => void;
 }) {
   return (
@@ -80,15 +80,16 @@ function ToggleRow({
         role="switch"
         aria-checked={checked}
         aria-label={title}
+        disabled={disabled}
         onClick={() => onChange(!checked)}
         className={[
-          "relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2",
+          "relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2 disabled:opacity-50",
           checked ? "bg-gwc-navy" : "bg-slate-200",
         ].join(" ")}
       >
         <span
           className={[
-            "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition",
+            "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all",
             checked ? "left-6" : "left-1",
           ].join(" ")}
         />
@@ -98,8 +99,19 @@ function ToggleRow({
 }
 
 export default function CommunicationDefaultsPage() {
-  const [form, setForm] = useState<CommunicationForm>(initialForm);
+  const [form, setForm] = useState<CommunicationForm>(emptyForm);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getCommunicationSettings().then((res) => {
+      setLoading(false);
+      if (!res.ok) return setError(res.message);
+      setForm(res.data);
+    });
+  }, []);
 
   function updateField<K extends keyof CommunicationForm>(
     field: K,
@@ -109,12 +121,44 @@ export default function CommunicationDefaultsPage() {
     setIsSaved(false);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    setIsSaved(false);
 
-    // Replace with a server action or API request when persistence is ready.
+    const res = await saveCommunicationSettings(form);
+    setSaving(false);
+
+    if (!res.ok) {
+      setError(res.message);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    setForm(res.data);
     setIsSaved(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  const timeZoneOptions = timeZones.includes(form.sendingTimeZone)
+    ? timeZones
+    : [form.sendingTimeZone, ...timeZones];
+
+  const disabled = loading || saving;
+
+  const saveButton = (
+    <button
+      type="submit"
+      form="communication-defaults-form"
+      disabled={disabled}
+      className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <Save className="h-4 w-4" aria-hidden="true" />
+      {saving ? "Saving..." : "Save Changes"}
+    </button>
+  );
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-8 lg:px-10">
@@ -138,17 +182,19 @@ export default function CommunicationDefaultsPage() {
               administrator notifications for newsletters.
             </p>
           </div>
-
-          <button
-            type="submit"
-            form="communication-defaults-form"
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2"
-          >
-            <Save className="h-4 w-4" aria-hidden="true" />
-            Save Changes
-          </button>
+          {saveButton}
         </div>
       </header>
+
+      {error && (
+        <div
+          role="alert"
+          className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+          <p>{error}</p>
+        </div>
+      )}
 
       {isSaved && (
         <div
@@ -159,15 +205,7 @@ export default function CommunicationDefaultsPage() {
             className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
             aria-hidden="true"
           />
-          <div>
-            <p className="font-semibold">
-              Communication defaults are ready to save
-            </p>
-            <p className="mt-0.5 text-emerald-700">
-              Connect this form to your settings API or server action to persist
-              these organization defaults.
-            </p>
-          </div>
+          <p className="font-semibold">Communication defaults saved.</p>
         </div>
       )}
 
@@ -199,14 +237,14 @@ export default function CommunicationDefaultsPage() {
               </span>
               <input
                 required
+                disabled={disabled}
                 value={form.senderName}
-                onChange={(event) =>
-                  updateField("senderName", event.target.value)
-                }
-                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
+                onChange={(e) => updateField("senderName", e.target.value)}
+                className={inputClass}
               />
               <span className="mt-2 block text-xs text-slate-400">
-                Shown in a recipient’s inbox as the sender of your newsletter.
+                Shown in a recipient&apos;s inbox as the sender of your
+                newsletter.
               </span>
             </label>
 
@@ -217,15 +255,15 @@ export default function CommunicationDefaultsPage() {
               <input
                 required
                 type="email"
+                disabled={disabled}
                 value={form.senderEmail}
-                onChange={(event) =>
-                  updateField("senderEmail", event.target.value)
-                }
-                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
+                onChange={(e) => updateField("senderEmail", e.target.value)}
+                placeholder="newsletter@yourchurch.org"
+                className={inputClass}
               />
               <span className="mt-2 block text-xs text-slate-400">
-                This address should be verified with your email delivery
-                provider.
+                Must be on a domain verified with your email provider, or emails
+                may go to spam.
               </span>
             </label>
 
@@ -236,11 +274,11 @@ export default function CommunicationDefaultsPage() {
               <input
                 required
                 type="email"
+                disabled={disabled}
                 value={form.replyToEmail}
-                onChange={(event) =>
-                  updateField("replyToEmail", event.target.value)
-                }
-                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
+                onChange={(e) => updateField("replyToEmail", e.target.value)}
+                placeholder="office@yourchurch.org"
+                className={inputClass}
               />
               <span className="mt-2 block text-xs text-slate-400">
                 Replies from recipients are delivered to this address.
@@ -271,30 +309,30 @@ export default function CommunicationDefaultsPage() {
                 Default sending time zone
               </span>
               <select
+                disabled={disabled}
                 value={form.sendingTimeZone}
-                onChange={(event) =>
-                  updateField("sendingTimeZone", event.target.value)
-                }
-                className="mt-2 w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
+                onChange={(e) => updateField("sendingTimeZone", e.target.value)}
+                className={`${inputClass} bg-white`}
               >
-                {timeZones.map((timeZone) => (
-                  <option key={timeZone} value={timeZone}>
-                    {timeZone}
+                {timeZoneOptions.map((tz) => (
+                  <option key={tz} value={tz}>
+                    {tz}
                   </option>
                 ))}
               </select>
               <span className="mt-2 block text-xs text-slate-400">
-                Scheduled campaign times are interpreted in this time zone
-                unless changed during campaign creation.
+                Shared with Organization Profile. Scheduled newsletter times use
+                this time zone.
               </span>
             </label>
 
             <div className="border-t border-slate-100 pt-1">
               <ToggleRow
                 title="Send a test copy before delivery"
-                description="Enable a test-send option by default when an editor reaches the newsletter review step."
+                description="Turn on the test-send option by default when an editor reaches the newsletter review step."
                 checked={form.sendTestCopy}
-                onChange={(value) => updateField("sendTestCopy", value)}
+                disabled={disabled}
+                onChange={(v) => updateField("sendTestCopy", v)}
               />
             </div>
           </div>
@@ -310,8 +348,8 @@ export default function CommunicationDefaultsPage() {
                 Subscription footer
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Provide a clear explanation of why the recipient is receiving
-                the email and how they can manage preferences.
+                Explain why the recipient is receiving the email and how they
+                can manage preferences.
               </p>
             </div>
           </div>
@@ -324,15 +362,14 @@ export default function CommunicationDefaultsPage() {
               <textarea
                 required
                 rows={4}
+                disabled={disabled}
                 value={form.unsubscribeText}
-                onChange={(event) =>
-                  updateField("unsubscribeText", event.target.value)
-                }
-                className="mt-2 w-full resize-y rounded-md border border-slate-200 px-3 py-2.5 text-sm leading-6 text-slate-800 outline-none transition focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
+                onChange={(e) => updateField("unsubscribeText", e.target.value)}
+                className={`${inputClass} resize-y leading-6`}
               />
               <span className="mt-2 block text-xs leading-5 text-slate-400">
-                Your delivery provider should still append working unsubscribe
-                and preference-management links to every applicable email.
+                A working unsubscribe link is added automatically below this
+                text in every newsletter.
               </span>
             </label>
           </div>
@@ -348,7 +385,7 @@ export default function CommunicationDefaultsPage() {
                 Administrator delivery alerts
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Choose which campaign events should notify your church
+                Choose which newsletter events should notify your church
                 administrators.
               </p>
             </div>
@@ -360,33 +397,34 @@ export default function CommunicationDefaultsPage() {
                 Alert recipients
               </span>
               <input
-                type="email"
+                type="text"
+                disabled={disabled}
                 value={form.notificationRecipients}
-                onChange={(event) =>
-                  updateField("notificationRecipients", event.target.value)
+                onChange={(e) =>
+                  updateField("notificationRecipients", e.target.value)
                 }
-                placeholder="admin@example.org"
-                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
+                placeholder="admin@yourchurch.org, pastor@yourchurch.org"
+                className={inputClass}
               />
               <span className="mt-2 block text-xs text-slate-400">
-                Use a shared administrator inbox. Support for multiple
-                recipients can be added when the notification backend is
-                connected.
+                Separate multiple addresses with commas.
               </span>
             </label>
 
             <div className="mt-5 border-t border-slate-100">
               <ToggleRow
-                title="Campaign delivery success alerts"
+                title="Delivery success alerts"
                 description="Notify administrators when a newsletter has finished sending successfully."
                 checked={form.sendSuccessAlerts}
-                onChange={(value) => updateField("sendSuccessAlerts", value)}
+                disabled={disabled}
+                onChange={(v) => updateField("sendSuccessAlerts", v)}
               />
               <ToggleRow
-                title="Campaign delivery failure alerts"
-                description="Notify administrators if a campaign cannot be delivered or requires attention."
+                title="Delivery failure alerts"
+                description="Notify administrators if a newsletter can't be delivered or needs attention."
                 checked={form.sendFailureAlerts}
-                onChange={(value) => updateField("sendFailureAlerts", value)}
+                disabled={disabled}
+                onChange={(v) => updateField("sendFailureAlerts", v)}
               />
             </div>
           </div>
@@ -399,26 +437,18 @@ export default function CommunicationDefaultsPage() {
           />
           <div>
             <h2 className="text-sm font-semibold text-amber-900">
-              Before sending your first campaign
+              Before sending your first newsletter
             </h2>
             <p className="mt-1 text-sm leading-6 text-amber-800">
-              Verify the default sender domain with your email provider and
-              confirm that unsubscribe handling is active. These settings define
-              defaults, but campaign creators should always review recipients
-              and delivery details before sending.
+              Verify your sender domain with your email provider under Settings
+              → Integrations. These are defaults only, so whoever creates a
+              newsletter should still check the recipients and details before
+              sending.
             </p>
           </div>
         </section>
 
-        <div className="flex justify-end pb-8">
-          <button
-            type="submit"
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-gwc-navy focus:ring-offset-2"
-          >
-            <Save className="h-4 w-4" aria-hidden="true" />
-            Save Changes
-          </button>
-        </div>
+        <div className="flex justify-end pb-8">{saveButton}</div>
       </form>
     </main>
   );

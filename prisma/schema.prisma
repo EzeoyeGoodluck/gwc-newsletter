@@ -22,6 +22,7 @@ model User {
   templates     Template[]
   newsletters   Newsletter[]
   auditLogs     AuditLog[]
+    privacyEvents PrivacyEvent[]
 }
 
 model Session {
@@ -37,6 +38,8 @@ model Session {
 
   @@index([userId])
 }
+
+
 
 model Account {
   id                    String    @id
@@ -134,6 +137,11 @@ model ChurchSettings {
   senderEmail   String?
   replyTo       String?
   footerText    String?  @db.Text
+  unsubscribeText String?  @db.Text
+  alertRecipients String?  @db.Text
+  alertOnSuccess  Boolean  @default(true)
+  alertOnFailure  Boolean  @default(true)
+  defaultTestSend Boolean  @default(true)
 
   updatedAt     DateTime @updatedAt
 }
@@ -165,9 +173,24 @@ model Member {
   updatedAt        DateTime      @updatedAt
   groups           MemberGroup[]
   deliveries       Delivery[]
+   privacyEvents PrivacyEvent[]
 
   @@index([status])
   @@index([membershipStatus])
+}
+
+model PrivacyEvent {
+  id        String   @id @default(cuid())
+  memberId  String
+  actorId   String?
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([memberId, createdAt])
 }
 
 model Group {
@@ -280,4 +303,31 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+
+model EmailProvider {
+  id            String    @id @default(cuid())
+  name          String
+  preset        String    @default("custom")
+  host          String
+  port          Int       @default(587)
+  secure        Boolean   @default(false)
+  username      String
+  passwordEnc   String    @db.Text
+  isActive      Boolean   @default(false)
+
+  maxPerHour    Int?
+  maxPerDay     Int?
+  batchSize     Int       @default(50)
+  batchDelaySec Int       @default(60)
+
+  lastTestedAt  DateTime?
+  lastTestOk    Boolean?
+  lastError     String?   @db.Text
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([isActive])
 }

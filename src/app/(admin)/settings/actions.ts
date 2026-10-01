@@ -7,19 +7,13 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { uploadDir, uploadUrl, filenameFromUrl } from "@/lib/uploads";
 
-
 type Result<T> = { ok: true; data: T } | { ok: false; message: string };
 
-export type BrandingSettings = {
-  displayName: string;
-  primaryColor: string;
-  accentColor: string;
-  footerText: string;
-  website: string;
-  logoUrl: string | null;
-};
+// ─────────────────────────────── Shared helpers ───────────────────────────────
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const LANGUAGES = ["en-US", "en-GB", "fr", "es", "pt"];
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 const ALLOWED_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -43,9 +37,29 @@ async function getOrCreate() {
   });
 }
 
-function toBranding(
-  s: Awaited<ReturnType<typeof getOrCreate>>
-): BrandingSettings {
+type SettingsRow = Awaited<ReturnType<typeof getOrCreate>>;
+
+function isValidTimeZone(tz: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ─────────────────────────────── Branding ───────────────────────────────
+
+export type BrandingSettings = {
+  displayName: string;
+  primaryColor: string;
+  accentColor: string;
+  footerText: string;
+  website: string;
+  logoUrl: string | null;
+};
+
+function toBranding(s: SettingsRow): BrandingSettings {
   return {
     displayName: s.name,
     primaryColor: s.primaryColor,
@@ -156,6 +170,8 @@ export async function saveBrandingSettings(
   return { ok: true, data: toBranding(updated) };
 }
 
+// ─────────────────────────────── Organization ───────────────────────────────
+
 export type OrganizationSettings = {
   organizationName: string;
   publicEmail: string;
@@ -171,21 +187,7 @@ export type OrganizationSettings = {
   language: string;
 };
 
-const LANGUAGES = ["en-US", "en-GB", "fr", "es", "pt"];
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function isValidTimeZone(tz: string) {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function toOrganization(
-  s: Awaited<ReturnType<typeof getOrCreate>>
-): OrganizationSettings {
+function toOrganization(s: SettingsRow): OrganizationSettings {
   return {
     organizationName: s.name,
     publicEmail: s.email ?? "",
@@ -292,4 +294,127 @@ export async function saveOrganizationSettings(
   });
 
   return { ok: true, data: toOrganization(updated) };
+}
+
+// ─────────────────────────────── Communication ───────────────────────────────
+
+export type CommunicationSettings = {
+  senderName: string;
+  senderEmail: string;
+  replyToEmail: string;
+  sendingTimeZone: string;
+  unsubscribeText: string;
+  sendSuccessAlerts: boolean;
+  sendFailureAlerts: boolean;
+  notificationRecipients: string;
+  sendTestCopy: boolean;
+};
+
+function toCommunication(s: SettingsRow): CommunicationSettings {
+  return {
+    senderName: s.senderName ?? s.name,
+    senderEmail: s.senderEmail ?? "",
+    replyToEmail: s.replyTo ?? s.email ?? "",
+    sendingTimeZone: s.timezone,
+    unsubscribeText:
+      s.unsubscribeText ??
+      `You are receiving this email because you are connected with ${s.name}. You may update your communication preferences or unsubscribe at any time.`,
+    sendSuccessAlerts: s.alertOnSuccess,
+    sendFailureAlerts: s.alertOnFailure,
+    notificationRecipients: s.alertRecipients ?? "",
+    sendTestCopy: s.defaultTestSend,
+  };
+}
+
+export async function getCommunicationSettings(): Promise<
+  Result<CommunicationSettings>
+> {
+  await requireUser();
+  return { ok: true, data: toCommunication(await getOrCreate()) };
+}
+
+export async function saveCommunicationSettings(
+  input: CommunicationSettings
+): Promise<Result<CommunicationSettings>> {
+  let user;
+  try {
+    user = await requireAdmin();
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+
+  const senderName = String(input.senderName ?? "").trim();
+  const senderEmail = String(input.senderEmail ?? "")
+    .trim()
+    .toLowerCase();
+  const replyTo = String(input.replyToEmail ?? "")
+    .trim()
+    .toLowerCase();
+  const timezone = String(input.sendingTimeZone ?? "").trim();
+  const unsubscribeText = String(input.unsubscribeText ?? "").trim();
+
+  const recipients = String(input.notificationRecipients ?? "")
+    .split(/[,;\s]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!senderName) return { ok: false, message: "Sender name is required." };
+  if (!EMAIL.test(senderEmail))
+    return { ok: false, message: "Enter a valid sender email." };
+  if (!EMAIL.test(replyTo))
+    return { ok: false, message: "Enter a valid reply-to email." };
+  if (!isValidTimeZone(timezone))
+    return { ok: false, message: "Choose a valid time zone." };
+  if (!unsubscribeText)
+    return { ok: false, message: "Unsubscribe text is required." };
+
+  const badRecipient = recipients.find((r) => !EMAIL.test(r));
+  if (badRecipient) {
+    return {
+      ok: false,
+      message: `"${badRecipient}" is not a valid email address.`,
+    };
+  }
+
+  const wantsAlerts =
+    Boolean(input.sendSuccessAlerts) || Boolean(input.sendFailureAlerts);
+  if (wantsAlerts && recipients.length === 0) {
+    return {
+      ok: false,
+      message: "Add at least one alert recipient, or turn off delivery alerts.",
+    };
+  }
+
+  const updated = await prisma.churchSettings.update({
+    where: { id: "default" },
+    data: {
+      senderName,
+      senderEmail,
+      replyTo,
+      timezone,
+      unsubscribeText,
+      alertRecipients: recipients.length ? recipients.join(", ") : null,
+      alertOnSuccess: Boolean(input.sendSuccessAlerts),
+      alertOnFailure: Boolean(input.sendFailureAlerts),
+      defaultTestSend: Boolean(input.sendTestCopy),
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      action: "settings.communication.update",
+      entityType: "ChurchSettings",
+      entityId: "default",
+      details: {
+        senderName,
+        senderEmail,
+        replyTo,
+        timezone,
+        alertRecipients: recipients,
+      },
+    },
+  });
+
+  return { ok: true, data: toCommunication(updated) };
 }
