@@ -1,6 +1,11 @@
 export const CAMPAIGNS_PAGE_SIZE = 10;
 
-export type CampaignStatus = "draft" | "scheduled" | "sent";
+export type CampaignStatus =
+  | "draft"
+  | "scheduled"
+  | "sending"
+  | "sent"
+  | "failed";
 
 export interface Campaign {
   id: string;

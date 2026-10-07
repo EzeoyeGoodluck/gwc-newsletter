@@ -9,7 +9,7 @@
 
 */
 -- AlterTable
-ALTER TABLE `member` DROP COLUMN `firstName`,
+ALTER TABLE `Member` DROP COLUMN `firstName`,
     DROP COLUMN `lastName`,
     ADD COLUMN `city` VARCHAR(191) NULL,
     ADD COLUMN `country` VARCHAR(191) NULL,

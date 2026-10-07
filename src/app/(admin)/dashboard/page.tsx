@@ -116,23 +116,50 @@ export default function DashboardPage() {
     hasFilters;
 
   const handleCampaignAction = async (action: string, campaign: Campaign) => {
-    if (action === "Delete" || action === "Delete Campaign") {
-      if (!confirm(`Delete "${campaign.title}"? This cannot be undone.`))
-        return;
-      const res = await deleteNewsletter(campaign.id);
-      if (!res.ok) {
-        alert(res.message);
-        return;
-      }
-      await loadCampaigns();
-      fetchDashboardMetrics()
-        .then(setMetrics)
-        .catch(() => {});
+    if (action !== "Delete" && action !== "Delete Campaign") {
+      console.log(action, campaign);
       return;
     }
-    console.log(action, campaign);
-  };
 
+    const confirmed = window.confirm(
+      `Delete "${campaign.title}"? This cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const res = await deleteNewsletter(campaign.id);
+
+      if (!res.ok) {
+        window.alert(res.message);
+        return;
+      }
+
+      // Remove the successfully deleted campaign from the visible list.
+      setCampaigns((previous) =>
+        previous.filter((item) => item.id !== campaign.id)
+      );
+
+      setTotalCampaigns((previous) => Math.max(0, previous - 1));
+
+      // Refresh the campaign list from its API.
+      await loadCampaigns();
+
+      // Refresh the dashboard totals.
+      try {
+        const updatedMetrics = await fetchDashboardMetrics();
+        setMetrics(updatedMetrics);
+      } catch (error) {
+        console.error(
+          "Campaign deleted, but dashboard metrics could not refresh:",
+          error
+        );
+      }
+    } catch (error) {
+      console.error("Failed to delete campaign:", error);
+      window.alert("Unable to delete the campaign. Please try again.");
+    }
+  };
   return (
     <div>
       <div className="mb-6">
@@ -192,7 +219,7 @@ export default function DashboardPage() {
           <>
             <CampaignsTable
               campaigns={campaigns}
-              onAction={(action, c) => console.log(action, c)}
+              onAction={handleCampaignAction}
             />
             <CampaignsPagination
               page={page}

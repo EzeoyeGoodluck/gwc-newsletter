@@ -1,9 +1,15 @@
 "use server";
 
 import { Prisma, NewsletterStatus } from "@prisma/client";
+import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-
+import {
+  blocksToText,
+  parseBlocks,
+  renderNewsletter,
+  type NewsletterBlock,
+} from "@/lib/newsletter-blocks";
 type Result<T> = { ok: true; data: T } | { ok: false; message: string };
 
 const ALL_ACTIVE = "All Active Members";
@@ -56,12 +62,64 @@ export type SaveNewsletterInput = {
   templateId?: string | null;
   headerImageUrl: string;
   bodyText: string;
-};
 
+  // New block-editor fields
+  previewText?: string;
+  blocks?: NewsletterBlock[];
+};
 export async function saveNewsletter(
   input: SaveNewsletterInput
 ): Promise<Result<{ id: string }>> {
   const user = await requireUser();
+  const permission =
+    input.intent === "draft" ? "newsletters.edit" : "newsletters.publish";
+
+  if (!can(user.role, permission)) {
+    return {
+      ok: false,
+      message: "You do not have permission to perform this action.",
+    };
+  }
+  let blocks: NewsletterBlock[] | undefined;
+
+  try {
+    blocks = input.blocks === undefined ? undefined : parseBlocks(input.blocks);
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : "Invalid newsletter blocks.",
+    };
+  }
+
+  const previewText = (input.previewText ?? "").trim();
+
+  if (previewText.length > 500) {
+    return {
+      ok: false,
+      message: "Preview text must be 500 characters or fewer.",
+    };
+  }
+
+  const bodyText = blocks === undefined ? input.bodyText : blocksToText(blocks);
+
+  const contentJson: Prisma.InputJsonObject = {
+    version: 1,
+    audience: input.audience,
+    headerImageUrl: input.headerImageUrl,
+    bodyText,
+    previewText,
+
+    ...(blocks !== undefined
+      ? {
+          blocks: blocks.map((block) => ({
+            id: block.id,
+            type: block.type,
+            fields: { ...block.fields },
+          })),
+        }
+      : {}),
+  };
 
   const title = input.campaignName.trim() || "Untitled Campaign";
   const subject = input.subjectLine.trim();
@@ -130,12 +188,21 @@ export async function saveNewsletter(
         recipientCount: recipients.length,
         templateId: input.templateId || null,
         authorId: user.id,
-        content: {
-          audience: input.audience,
-          headerImageUrl: input.headerImageUrl,
-          bodyText: input.bodyText,
-        },
-        html: buildHtml(subject || title, input.headerImageUrl, input.bodyText),
+
+        // Save the inbox preview and editable newsletter content.
+        previewText: previewText || null,
+        content: contentJson,
+
+        // Render blocks when present; preserve the legacy text renderer otherwise.
+        html:
+          blocks === undefined
+            ? buildHtml(subject || title, input.headerImageUrl, input.bodyText)
+            : renderNewsletter(blocks, {
+                subject: subject || title,
+                headerImageUrl: input.headerImageUrl,
+                previewText,
+              }),
+
         groups: group ? { create: [{ groupId: group.id }] } : undefined,
       },
       select: { id: true },
@@ -162,7 +229,7 @@ export type CampaignRow = {
   id: string;
   campaignId: string;
   title: string;
-  status: "draft" | "scheduled" | "sent";
+  status: "draft" | "scheduled" | "sending" | "sent" | "failed";
   category: string;
   audience: string;
   lastEdited: string;
@@ -189,12 +256,15 @@ export async function listNewsletters(): Promise<Result<CampaignRow[]>> {
     ok: true,
     data: rows.map((n) => {
       const c = (n.content ?? {}) as { audience?: string };
-      const status: CampaignRow["status"] =
-        n.status === "DRAFT"
-          ? "draft"
-          : n.status === "SCHEDULED"
-            ? "scheduled"
-            : "sent";
+      const statusMap: Record<NewsletterStatus, CampaignRow["status"]> = {
+        DRAFT: "draft",
+        SCHEDULED: "scheduled",
+        SENDING: "sending",
+        SENT: "sent",
+        FAILED: "failed",
+      };
+
+      const status = statusMap[n.status];
       return {
         id: n.id,
         campaignId: `CMP-${n.createdAt.getFullYear()}-${String(n.createdAt.getMonth() + 1).padStart(2, "0")}-${n.id.slice(-4).toUpperCase()}`,

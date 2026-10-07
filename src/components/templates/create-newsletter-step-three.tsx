@@ -1,11 +1,30 @@
 "use client";
 
-import { ChevronLeft, Send, Save } from "lucide-react";
+import { useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  Copy,
+  Plus,
+  Save,
+  Trash2,
+} from "lucide-react";
+import {
+  BLOCK_DEFINITIONS,
+  BLOCK_TYPES,
+  blocksToText,
+  renderNewsletter,
+  type BlockType,
+  type NewsletterBlock,
+} from "@/lib/newsletter-blocks";
 
 export interface NewsletterContent {
   subjectLine: string;
   headerImageUrl: string;
   bodyText: string;
+  previewText?: string;
+  blocks?: NewsletterBlock[];
 }
 
 interface CreateNewsletterStepThreeProps {
@@ -15,6 +34,40 @@ interface CreateNewsletterStepThreeProps {
   onBack: () => void;
   onSaveDraft: () => void;
   onSend: () => void;
+  saving?: boolean;
+}
+
+const inputClass =
+  "w-full rounded-lg border border-gwc-border/50 bg-gwc-muted-bg px-3 py-2.5 text-sm text-gwc-navy focus:outline-none focus:ring-2 focus:ring-gwc-navy/20";
+
+const FIELD_LABELS: Record<string, string> = {
+  text: "Greeting text",
+  heading: "Heading",
+  body: "Message",
+  verse: "Verse text",
+  reference: "Scripture reference",
+  title: "Event title",
+  date: "Date and time",
+  location: "Location",
+  description: "Description",
+  label: "Button label",
+  url: "URL",
+  alt: "Image description",
+};
+
+function initialBlocks(content: NewsletterContent): NewsletterBlock[] {
+  // Undefined means legacy content. An empty array means intentionally empty.
+  if (content.blocks !== undefined) return content.blocks;
+
+  return content.bodyText
+    ? [
+        {
+          id: "legacy-body",
+          type: "text",
+          fields: { heading: "", body: content.bodyText },
+        },
+      ]
+    : [];
 }
 
 export function CreateNewsletterStepThree({
@@ -24,117 +77,322 @@ export function CreateNewsletterStepThree({
   onBack,
   onSaveDraft,
   onSend,
+  saving = false,
 }: CreateNewsletterStepThreeProps) {
-  const update = <K extends keyof NewsletterContent>(
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const blocks = initialBlocks(content);
+  const selected = blocks.find((block) => block.id === selectedId);
+
+  function updateContent<K extends keyof NewsletterContent>(
     key: K,
     value: NewsletterContent[K]
-  ) => {
+  ) {
     onContentChange({ ...content, [key]: value });
-  };
+  }
+
+  function commit(next: NewsletterBlock[]) {
+    onContentChange({
+      ...content,
+      blocks: next,
+      bodyText: blocksToText(next),
+    });
+  }
+
+  function addBlock(type: BlockType) {
+    const block: NewsletterBlock = {
+      id: crypto.randomUUID(),
+      type,
+      fields: { ...BLOCK_DEFINITIONS[type].defaults },
+    };
+
+    commit([...blocks, block]);
+    setSelectedId(block.id);
+  }
+
+  function updateField(key: string, value: string) {
+    if (!selected) return;
+
+    commit(
+      blocks.map((block) =>
+        block.id === selected.id
+          ? { ...block, fields: { ...block.fields, [key]: value } }
+          : block
+      )
+    );
+  }
+
+  function move(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= blocks.length) return;
+
+    const next = [...blocks];
+    [next[index], next[target]] = [next[target], next[index]];
+    commit(next);
+  }
+
+  function duplicate(index: number) {
+    const original = blocks[index];
+    const duplicate: NewsletterBlock = {
+      ...original,
+      id: crypto.randomUUID(),
+      fields: { ...original.fields },
+    };
+    const next = [...blocks];
+    next.splice(index + 1, 0, duplicate);
+    commit(next);
+    setSelectedId(duplicate.id);
+  }
+
+  function remove(id: string) {
+    commit(blocks.filter((block) => block.id !== id));
+    if (selectedId === id) setSelectedId(null);
+  }
+
+  const preview = renderNewsletter(blocks, {
+    subject: content.subjectLine || campaignName || "Sunday Bulletin",
+    headerImageUrl: content.headerImageUrl,
+    previewText: content.previewText,
+  });
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex flex-col gap-2">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div>
           <button
+            type="button"
             onClick={onBack}
-            className="flex items-center gap-1 text-sm text-gwc-text-muted cursor-pointer hover:text-gwc-navy w-fit"
+            disabled={saving}
+            className="mb-2 flex items-center gap-1 text-sm text-gwc-text-muted disabled:opacity-50"
           >
             <ChevronLeft className="h-4 w-4" />
             Back to Campaign Details
           </button>
-          <h1 className="text-[28px] font-semibold text-gwc-navy tracking-tight">
+
+          <h1 className="text-[28px] font-semibold text-gwc-navy">
             {campaignName || "Untitled Campaign"}
           </h1>
-          <p className="text-sm text-gwc-text-body">
-            Step 3 of 3 — Compose your message.
+          <p className="mt-1 text-sm text-gwc-text-body">
+            Step 3 of 4 — Editor & Build
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex gap-3">
           <button
+            type="button"
             onClick={onSaveDraft}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-gwc-text-body border border-gwc-border/50 cursor-pointer hover:bg-gwc-muted-bg"
+            disabled={saving}
+            className="flex items-center gap-2 rounded-lg border border-gwc-border/50 px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
-            Save Draft
+            {saving ? "Saving…" : "Save Draft"}
           </button>
+
           <button
+            type="button"
             onClick={onSend}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-gwc-gold text-gwc-gold-text cursor-pointer hover:brightness-95"
+            disabled={saving || !content.subjectLine.trim()}
+            className="rounded-lg bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
           >
-            <Send className="h-4 w-4" />
-            Send Newsletter
+            Next: Review
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gwc-border/20 p-6 flex flex-col gap-5">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-semibold text-gwc-text-body">
-              Subject Line
-            </label>
-            <input
-              value={content.subjectLine}
-              onChange={(e) => update("subjectLine", e.target.value)}
-              className="border border-gwc-border/50 rounded-lg px-4 py-3 text-[15px] text-gwc-navy bg-gwc-muted-bg focus:outline-none focus:ring-2 focus:ring-gwc-navy/20"
-            />
-          </div>
+      <section className="grid gap-4 rounded-xl border border-gwc-border/20 bg-white p-5 md:grid-cols-3">
+        <label className="flex flex-col gap-2 text-xs font-semibold">
+          Subject line
+          <input
+            className={inputClass}
+            value={content.subjectLine}
+            onChange={(e) => updateContent("subjectLine", e.target.value)}
+          />
+        </label>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-semibold text-gwc-text-body">
-              Header Image URL
-            </label>
-            <input
-              value={content.headerImageUrl}
-              onChange={(e) => update("headerImageUrl", e.target.value)}
-              placeholder="https://..."
-              className="border border-gwc-border/50 rounded-lg px-4 py-3 text-[15px] text-gwc-navy bg-gwc-muted-bg focus:outline-none focus:ring-2 focus:ring-gwc-navy/20"
-            />
-          </div>
+        <label className="flex flex-col gap-2 text-xs font-semibold">
+          Preview text
+          <input
+            className={inputClass}
+            value={content.previewText ?? ""}
+            onChange={(e) => updateContent("previewText", e.target.value)}
+            placeholder="A short summary for the inbox"
+          />
+        </label>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-semibold text-gwc-text-body">
-              Message Body
-            </label>
-            <textarea
-              value={content.bodyText}
-              onChange={(e) => update("bodyText", e.target.value)}
-              rows={14}
-              className="border border-gwc-border/50 rounded-lg px-4 py-4 text-[15px] text-gwc-navy bg-gwc-muted-bg resize-none focus:outline-none focus:ring-2 focus:ring-gwc-navy/20 leading-relaxed"
-            />
-          </div>
-        </div>
+        <label className="flex flex-col gap-2 text-xs font-semibold">
+          Header image URL
+          <input
+            className={inputClass}
+            value={content.headerImageUrl}
+            onChange={(e) => updateContent("headerImageUrl", e.target.value)}
+            placeholder="https://..."
+          />
+        </label>
+      </section>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gwc-border/20 overflow-hidden flex flex-col h-fit sticky top-6">
-          <div className="bg-gwc-navy px-6 py-5 flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-gwc-navy">
-              GW
+      <div className="grid items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <aside className="flex flex-col gap-5">
+          <section className="rounded-xl border border-gwc-border/20 bg-white p-5">
+            <h2 className="font-semibold text-gwc-navy">Content Blocks</h2>
+            <p className="mb-4 mt-1 text-xs text-gwc-text-muted">
+              Click a block to add it.
+            </p>
+
+            <div className="flex flex-col gap-2">
+              {BLOCK_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => addBlock(type)}
+                  disabled={blocks.length >= 100}
+                  className="flex items-center justify-between rounded-lg border border-gwc-border/30 bg-gwc-muted-bg px-3 py-3 text-left text-sm hover:border-gwc-navy disabled:opacity-50"
+                >
+                  {BLOCK_DEFINITIONS[type].label}
+                  <Plus className="h-4 w-4" />
+                </button>
+              ))}
             </div>
-            <span className="text-white text-sm font-semibold">
-              Glory Worship Church
-            </span>
-          </div>
+          </section>
 
-          {content.headerImageUrl && (
-            <img
-              src={content.headerImageUrl}
-              alt="Header"
-              className="w-full h-40 object-cover"
-            />
+          <section className="rounded-xl border border-gwc-border/20 bg-white p-5">
+            <h2 className="mb-4 font-semibold text-gwc-navy">
+              Newsletter Sections
+            </h2>
+
+            {!blocks.length && (
+              <p className="text-sm text-gwc-text-muted">
+                Add your first block above.
+              </p>
+            )}
+
+            <div className="flex flex-col gap-2">
+              {blocks.map((block, index) => (
+                <div
+                  key={block.id}
+                  className={`rounded-lg border p-3 ${
+                    selectedId === block.id
+                      ? "border-gwc-navy bg-gwc-navy/5"
+                      : "border-gwc-border/30"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(block.id)}
+                    className="w-full text-left text-sm font-semibold"
+                  >
+                    {index + 1}. {BLOCK_DEFINITIONS[block.type].label}
+                  </button>
+
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      title="Move up"
+                      aria-label="Move section up"
+                      disabled={index === 0}
+                      onClick={() => move(index, -1)}
+                      className="rounded p-1 hover:bg-gwc-muted-bg disabled:opacity-30"
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Move down"
+                      aria-label="Move section down"
+                      disabled={index === blocks.length - 1}
+                      onClick={() => move(index, 1)}
+                      className="rounded p-1 hover:bg-gwc-muted-bg disabled:opacity-30"
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Duplicate"
+                      aria-label="Duplicate section"
+                      disabled={blocks.length >= 100}
+                      onClick={() => duplicate(index)}
+                      className="rounded p-1 hover:bg-gwc-muted-bg disabled:opacity-30"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Remove"
+                      aria-label="Remove section"
+                      onClick={() => remove(block.id)}
+                      className="ml-auto rounded p-1 text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {selected && (
+            <section className="rounded-xl border border-gwc-border/20 bg-white p-5">
+              <h2 className="mb-4 font-semibold text-gwc-navy">
+                Edit {BLOCK_DEFINITIONS[selected.type].label}
+              </h2>
+
+              {selected.type === "divider" ? (
+                <p className="text-sm text-gwc-text-muted">
+                  This block adds a horizontal separator.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {Object.entries(selected.fields).map(([key, value]) => (
+                    <label
+                      key={key}
+                      className="flex flex-col gap-2 text-xs font-semibold"
+                    >
+                      {FIELD_LABELS[key] ?? key}
+
+                      {["body", "verse", "description"].includes(key) ? (
+                        <textarea
+                          rows={5}
+                          className={inputClass}
+                          value={value}
+                          onChange={(e) => updateField(key, e.target.value)}
+                        />
+                      ) : (
+                        <input
+                          className={inputClass}
+                          value={value}
+                          onChange={(e) => updateField(key, e.target.value)}
+                          placeholder={key === "url" ? "https://..." : ""}
+                        />
+                      )}
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {selected.type === "greeting" && (
+                <p className="mt-3 text-xs text-gwc-text-muted">
+                  {"{{memberName}}"} is a placeholder; delivery personalization
+                  must be connected in the sender.
+                </p>
+              )}
+            </section>
           )}
+        </aside>
 
-          <div className="px-6 py-6 flex flex-col gap-3">
-            <p className="text-sm font-semibold text-gwc-text-heading">
-              {content.subjectLine || "(Your subject line)"}
-            </p>
-            <p className="text-sm text-gwc-text-body leading-relaxed whitespace-pre-wrap">
-              {content.bodyText ||
-                "Your message body will appear here as you type."}
+        <section className="overflow-hidden rounded-xl border border-gwc-border/20 bg-white shadow-sm">
+          <div className="border-b border-gwc-border/20 px-5 py-4">
+            <h2 className="font-semibold text-gwc-navy">Live Preview</h2>
+            <p className="mt-1 text-xs text-gwc-text-muted">
+              Select a section on the left to edit it.
             </p>
           </div>
-        </div>
+
+          <iframe
+            title="Newsletter preview"
+            srcDoc={preview}
+            sandbox=""
+            referrerPolicy="no-referrer"
+            className="h-[950px] w-full border-0 bg-gwc-muted-bg"
+          />
+        </section>
       </div>
     </div>
   );
