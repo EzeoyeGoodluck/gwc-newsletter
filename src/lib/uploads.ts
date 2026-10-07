@@ -1,7 +1,10 @@
 import path from "path";
 
 export function uploadDir() {
-  return path.resolve(process.env.UPLOAD_DIR || "./uploads");
+return path.resolve(
+  /* turbopackIgnore: true */
+  process.env.UPLOAD_DIR || "./uploads"
+);
 }
 
 export function uploadUrl(filename: string) {

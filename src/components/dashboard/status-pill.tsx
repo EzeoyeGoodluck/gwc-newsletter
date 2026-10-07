@@ -5,6 +5,18 @@ const statusConfig: Record<
   CampaignStatus,
   { label: string; bg: string; text: string; dot: string }
 > = {
+  sending: {
+    label: "Sending",
+    bg: "bg-blue-100",
+    text: "text-blue-700",
+    dot: "bg-blue-500",
+  },
+  failed: {
+    label: "Failed",
+    bg: "bg-red-100",
+    text: "text-red-700",
+    dot: "bg-red-500",
+  },
   draft: {
     label: "Draft",
     bg: "bg-gray-200",
