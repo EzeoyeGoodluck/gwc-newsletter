@@ -215,7 +215,7 @@ export async function processCampaignBatch(input: ProcessInput) {
 
       const batchSize = Math.min(
         Math.max(1, provider.batchSize),
-        10,
+        50,
         hourlyRemaining,
         dailyRemaining
       );
