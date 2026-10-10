@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 const actionsByStatus: Record<CampaignStatus, string[]> = {
   draft: ["Edit", "Review", "Send Now", "Duplicate", "Archive", "Delete"],
   scheduled: ["Pause/Edit", "Reschedule", "Cancel", "Preview"],
-  sending: ["View Progress", "Preview"],
+  sending: ["View Progress", "Preview", "Delete"],
   sent: ["View Report", "Duplicate", "Archive", "Delete"],
   failed: ["View Report", "Edit", "Duplicate", "Delete"],
 };

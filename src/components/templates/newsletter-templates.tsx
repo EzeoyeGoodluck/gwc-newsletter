@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, ChevronDown } from "lucide-react";
+import { Plus } from "lucide-react";
+
+import type { NewsletterTemplateDesign } from "@/lib/newsletter-template-presets";
 
 export interface Template {
   id: string;
@@ -11,6 +12,8 @@ export interface Template {
   category: string;
   updatedLabel: string;
   popular?: boolean;
+  design?: NewsletterTemplateDesign | null;
+  previewHtml?: string | null;
 }
 
 interface NewsletterTemplatesProps {
@@ -22,12 +25,66 @@ interface NewsletterTemplatesProps {
   onCreateBlank: () => void;
 }
 
-const categoryColors: Record<string, string> = {
-  EVENTS: "text-amber-600",
-  GENERAL: "text-blue-600",
-  MINISTRY: "text-purple-600",
-  ONBOARDING: "text-green-600",
+interface TemplatePreviewProps {
+  template: Template;
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  EVENTS: "bg-amber-50 text-amber-700",
+  GENERAL: "bg-blue-50 text-blue-700",
+  MINISTRY: "bg-purple-50 text-purple-700",
+  ONBOARDING: "bg-green-50 text-green-700",
 };
+
+function TemplatePreview({ template }: TemplatePreviewProps) {
+  const communityPhoto =
+    "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=1000&q=85";
+
+  const volunteerPhoto =
+    "https://images.unsplash.com/photo-1559027615-cd4628902d4a?auto=format&fit=crop&w=1000&q=85";
+
+  const presetCovers: Record<string, string> = {
+    "gwc-preset-weekly-bulletin-v1": communityPhoto,
+    "gwc-preset-event-announcement-v1": communityPhoto,
+    "gwc-preset-ministry-update-v1": volunteerPhoto,
+  };
+
+  const category = template.category.trim().toUpperCase();
+
+  const fallbackPhoto =
+    category === "MINISTRY" ? volunteerPhoto : communityPhoto;
+
+  const coverUrl =
+    template.imageUrl?.trim() || presetCovers[template.id] || fallbackPhoto;
+
+  return (
+    <div className="relative h-[220px] w-full overflow-hidden border-b border-gwc-border/20 bg-[#F4F6F8]">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={coverUrl}
+        alt={`${template.title} cover`}
+        loading="lazy"
+        className="block h-full w-full object-cover object-center"
+        onError={(event) => {
+          const image = event.currentTarget;
+
+          // Try one fallback without creating an error loop.
+          if (image.dataset.fallbackAttempted === "true") return;
+
+          image.dataset.fallbackAttempted = "true";
+          image.src =
+            coverUrl === communityPhoto ? volunteerPhoto : communityPhoto;
+        }}
+      />
+
+      {template.popular && (
+        <span className="absolute left-3 top-3 z-10 rounded-full bg-gwc-gold px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-gwc-gold-text shadow-sm">
+          Popular
+        </span>
+      )}
+    </div>
+  );
+}
 
 export function NewsletterTemplates({
   templates,
@@ -37,127 +94,126 @@ export function NewsletterTemplates({
   onUseTemplate,
   onCreateBlank,
 }: NewsletterTemplatesProps) {
-  const [filterOpen, setFilterOpen] = useState(false);
-  const categoryOptions = ["All Categories", ...availableCategories];
+  const categoryOptions = Array.from(
+    new Set([
+      "All Categories",
+      ...availableCategories.filter(Boolean),
+      categoryFilter,
+    ])
+  );
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex items-start justify-between gap-6 flex-wrap">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-[28px] font-semibold text-gwc-navy tracking-tight">
+      <header className="flex flex-wrap items-start justify-between gap-6">
+        <div>
+          <h1 className="font-gwc-heading text-[28px] font-semibold tracking-tight text-gwc-navy">
             Template Library
           </h1>
-          <p className="text-sm text-gwc-text-body">
-            Choose a starting point for your next communication.
+
+          <p className="mt-1 text-sm text-gwc-text-body">
+            Choose a ready-to-edit newsletter for your next communication.
           </p>
         </div>
 
-        <div className="relative">
-          <button
-            onClick={() => setFilterOpen((v) => !v)}
-            className="flex items-center gap-2 bg-white border border-gwc-border rounded-lg px-4 py-2.5 text-sm text-gwc-text-body cursor-pointer hover:bg-gwc-muted-bg transition-colors"
+        <label className="flex flex-col gap-1.5">
+          <span className="sr-only">Filter templates by category</span>
+
+          <select
+            value={categoryFilter}
+            onChange={(event) => onCategoryFilterChange(event.target.value)}
+            className="min-w-[160px] cursor-pointer rounded-lg border border-gwc-border bg-white px-4 py-2.5 text-sm text-gwc-text-body outline-none transition-colors focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
           >
-            {categoryFilter}
-            <ChevronDown className="h-3.5 w-3.5" />
-          </button>
-          {filterOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-10"
-                onClick={() => setFilterOpen(false)}
-              />
-              <div className="absolute right-0 top-full mt-1 z-20 w-48 bg-white rounded-md shadow-lg border border-gwc-border/20 py-1">
-                {categoryOptions.map((option) => (
-                  <button
-                    key={option}
-                    onClick={() => {
-                      onCategoryFilterChange(option);
-                      setFilterOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm text-gwc-text-body hover:bg-gwc-muted-bg cursor-pointer"
+            {categoryOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+      </header>
+
+      {templates.length > 0 ? (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {templates.map((template) => {
+            const categoryColor =
+              CATEGORY_COLORS[template.category.trim().toUpperCase()] ??
+              "bg-gwc-muted-bg text-gwc-text-muted";
+
+            return (
+              <article
+                key={template.id}
+                className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-gwc-border/20 bg-white shadow-sm transition-shadow hover:shadow-md"
+              >
+                <TemplatePreview template={template} />
+
+                <div className="flex flex-1 flex-col p-5">
+                  <span
+                    className={`self-start rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${categoryColor}`}
                   >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+                    {template.category}
+                  </span>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {templates.map((template) => (
-          <div
-            key={template.id}
-            className="flex flex-col bg-white rounded-xl border border-gwc-border/20 shadow-sm overflow-hidden hover:shadow-md transition-shadow"
-          >
-            <div className="relative h-36 w-full overflow-hidden bg-gwc-border/20">
-              <img
-                src={template.imageUrl}
-                alt={template.title}
-                className="h-full w-full object-cover"
-              />
-              {template.popular && (
-                <div className="absolute top-3 left-0 bg-gwc-gold text-gwc-gold-text text-[11px] font-bold tracking-wide uppercase px-3 py-1 rounded-r-full shadow-sm">
-                  Popular
+                  <h2 className="mt-3 font-gwc-heading text-lg font-semibold leading-snug text-gwc-text-heading">
+                    {template.title}
+                  </h2>
+
+                  <p className="mt-2 text-sm leading-relaxed text-gwc-text-body">
+                    {template.description}
+                  </p>
+
+                  <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-6">
+                    <span className="text-xs text-gwc-text-muted">
+                      {template.updatedLabel}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => onUseTemplate(template)}
+                      aria-label={`Use ${template.title} template`}
+                      className="cursor-pointer rounded-lg bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gwc-navy focus-visible:ring-offset-2"
+                    >
+                      Use Template
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
-            <div className="flex flex-col justify-between flex-1 px-5 py-4">
-              <div className="flex flex-col gap-1.5">
-                <span
-                  className={`text-[11px] font-bold uppercase tracking-wide ${
-                    categoryColors[template.category.toUpperCase()] ??
-                    "text-gwc-text-muted"
-                  }`}
-                >
-                  {template.category}
-                </span>
-                <h3 className="text-base font-semibold text-gwc-text-heading leading-snug">
-                  {template.title}
-                </h3>
-                <p className="text-[13px] text-gwc-text-body leading-relaxed">
-                  {template.description}
-                </p>
-              </div>
-              <div className="flex items-center justify-between mt-4">
-                <span className="text-[12px] text-gwc-text-muted">
-                  {template.updatedLabel}
-                </span>
-                <button
-                  onClick={() => onUseTemplate(template)}
-                  className="text-sm font-semibold text-gwc-navy cursor-pointer hover:underline"
-                >
-                  Use
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        <button
-          onClick={onCreateBlank}
-          className="flex flex-col items-center justify-center gap-3 bg-white rounded-xl border-2 border-dashed border-gwc-border/50 min-h-[260px] px-6 py-10 cursor-pointer hover:border-gwc-navy/40 hover:bg-gwc-muted-bg/30 transition-colors"
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div
+          role="status"
+          className="rounded-xl border border-gwc-border/20 bg-white px-6 py-12 text-center"
         >
-          <div className="h-12 w-12 rounded-full bg-gwc-muted-bg flex items-center justify-center">
-            <Plus className="h-5 w-5 text-gwc-text-muted" />
-          </div>
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-sm font-semibold text-gwc-text-heading">
-              Blank Template
-            </span>
-            <span className="text-[12px] text-gwc-text-muted text-center max-w-[160px]">
-              Start from scratch with the drag-and-drop editor.
-            </span>
-          </div>
-        </button>
-      </div>
+          <p className="text-sm font-semibold text-gwc-text-heading">
+            No templates found
+          </p>
 
-      {templates.length === 0 && (
-        <p className="text-center text-gwc-text-muted py-12">
-          No templates found in this category.
-        </p>
+          <p className="mt-2 text-sm text-gwc-text-muted">
+            Choose another category or start with a blank template.
+          </p>
+        </div>
       )}
+
+      <button
+        type="button"
+        onClick={onCreateBlank}
+        className="flex cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-gwc-border/50 bg-white px-6 py-8 text-center transition-colors hover:border-gwc-navy/40 hover:bg-gwc-muted-bg/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gwc-navy focus-visible:ring-offset-2 sm:flex-row sm:text-left"
+      >
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gwc-muted-bg">
+          <Plus aria-hidden="true" className="h-5 w-5 text-gwc-text-muted" />
+        </span>
+
+        <span>
+          <span className="block text-sm font-semibold text-gwc-text-heading">
+            Start with a Blank Template
+          </span>
+
+          <span className="mt-1 block text-xs text-gwc-text-muted">
+            Build your own newsletter using the content blocks.
+          </span>
+        </span>
+      </button>
     </div>
   );
 }

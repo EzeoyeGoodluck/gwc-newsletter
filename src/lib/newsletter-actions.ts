@@ -1,6 +1,7 @@
 "use server";
 
 import { Prisma, NewsletterStatus } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
@@ -53,6 +54,7 @@ export async function countRecipients(
 }
 
 export type SaveNewsletterInput = {
+  id?: string;
   intent: "draft" | "scheduled" | "send";
   campaignName: string;
   subjectLine: string;
@@ -176,9 +178,9 @@ export async function saveNewsletter(
         ? "SCHEDULED"
         : "SENDING";
 
-  const newsletter = await prisma.$transaction(async (tx) => {
-    const created = await tx.newsletter.create({
-      data: {
+  try {
+    const newsletter = await prisma.$transaction(async (tx) => {
+      const newsletterData = {
         title,
         subject: subject || title,
         category: input.category,
@@ -187,13 +189,8 @@ export async function saveNewsletter(
         scheduledAt: input.intent === "send" ? new Date() : scheduledAt,
         recipientCount: recipients.length,
         templateId: input.templateId || null,
-        authorId: user.id,
-
-        // Save the inbox preview and editable newsletter content.
         previewText: previewText || null,
         content: contentJson,
-
-        // Render blocks when present; preserve the legacy text renderer otherwise.
         html:
           blocks === undefined
             ? buildHtml(subject || title, input.headerImageUrl, input.bodyText)
@@ -202,27 +199,90 @@ export async function saveNewsletter(
                 headerImageUrl: input.headerImageUrl,
                 previewText,
               }),
+      };
 
-        groups: group ? { create: [{ groupId: group.id }] } : undefined,
-      },
-      select: { id: true },
+      let saved: { id: string };
+
+      if (input.id) {
+        // Check the current status within the update itself.
+        const updated = await tx.newsletter.updateMany({
+          where: {
+            id: input.id,
+            status: "DRAFT",
+          },
+          data: newsletterData,
+        });
+
+        if (updated.count !== 1) {
+          throw new Error(
+            "The campaign no longer exists or is no longer a draft. Refresh the dashboard."
+          );
+        }
+
+        // An editable draft must not have an existing delivery queue.
+        const deliveryCount = await tx.delivery.count({
+          where: { newsletterId: input.id },
+        });
+
+        if (deliveryCount !== 0) {
+          throw new Error(
+            "This draft already has delivery records. Inspect its queue before editing or sending."
+          );
+        }
+
+        await tx.newsletterGroup.deleteMany({
+          where: { newsletterId: input.id },
+        });
+
+        if (group) {
+          await tx.newsletterGroup.create({
+            data: {
+              newsletterId: input.id,
+              groupId: group.id,
+            },
+          });
+        }
+
+        saved = { id: input.id };
+      } else {
+        saved = await tx.newsletter.create({
+          data: {
+            ...newsletterData,
+            authorId: user.id,
+            groups: group ? { create: [{ groupId: group.id }] } : undefined,
+          },
+          select: { id: true },
+        });
+      }
+
+      if (input.intent === "send") {
+        await tx.delivery.createMany({
+          data: recipients.map((recipient) => ({
+            newsletterId: saved.id,
+            memberId: recipient.id,
+            email: recipient.email,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return saved;
     });
 
-    if (input.intent === "send") {
-      await tx.delivery.createMany({
-        data: recipients.map((r) => ({
-          newsletterId: created.id,
-          memberId: r.id,
-          email: r.email,
-        })),
-        skipDuplicates: true,
-      });
-    }
+    return { ok: true, data: newsletter };
+  } catch (error) {
+    console.error("Failed to save newsletter:", error);
 
-    return created;
-  });
-
-  return { ok: true, data: newsletter };
+    return {
+      ok: false,
+      message:
+        error instanceof Error &&
+        (error.message.startsWith("The campaign no longer") ||
+          error.message.startsWith("This draft already"))
+          ? error.message
+          : "Unable to save the campaign. Please try again.",
+    };
+  }
 }
 
 export type CampaignRow = {
@@ -279,7 +339,319 @@ export async function listNewsletters(): Promise<Result<CampaignRow[]>> {
 }
 
 export async function deleteNewsletter(id: string): Promise<Result<null>> {
-  await requireUser();
-  await prisma.newsletter.delete({ where: { id } });
-  return { ok: true, data: null };
+  const user = await requireUser();
+
+  if (!can(user.role, "newsletters.edit")) {
+    return {
+      ok: false,
+      message: "You do not have permission to delete campaigns.",
+    };
+  }
+
+  const campaignId = id.trim();
+
+  if (!campaignId) {
+    return {
+      ok: false,
+      message: "A campaign ID is required.",
+    };
+  }
+
+  // Use the SAME lock as processCampaignBatch().
+  // This prevents deletion during an active processing batch.
+  const lockId = "campaign-smtp-queue";
+  const token = randomUUID();
+
+  try {
+    await prisma.campaignQueueLock.create({
+      data: {
+        id: lockId,
+        token,
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return {
+        ok: false,
+        message:
+          "Deletion is blocked because an email processor is running, or an interrupted run left a queue lock. Wait for the active batch to finish. If the lock persists, inspect the interrupted run before clearing it.",
+      };
+    }
+
+    console.error("Failed to acquire campaign deletion lock:", error);
+
+    return {
+      ok: false,
+      message:
+        "Unable to check whether campaign processing is active. The campaign was not deleted.",
+    };
+  }
+
+  try {
+    return await prisma.$transaction(async (tx): Promise<Result<null>> => {
+      const campaign = await tx.newsletter.findUnique({
+        where: { id: campaignId },
+        select: {
+          id: true,
+          status: true,
+        },
+      });
+
+      if (!campaign) {
+        return {
+          ok: false,
+          message: "The campaign no longer exists.",
+        };
+      }
+
+      // Scheduling is a separate workflow.
+      if (campaign.status === "SCHEDULED") {
+        return {
+          ok: false,
+          message:
+            "Scheduled campaigns must be cancelled before deletion. Cancellation is not connected yet.",
+        };
+      }
+
+      // A claimed QUEUED delivery may already have reached SMTP
+      // without its result being recorded. Preserve that evidence.
+      const unresolvedDeliveries = await tx.delivery.count({
+        where: {
+          newsletterId: campaignId,
+          status: "QUEUED",
+          processingAt: {
+            not: null,
+          },
+        },
+      });
+
+      if (unresolvedDeliveries > 0) {
+        return {
+          ok: false,
+          message:
+            `This campaign has ${unresolvedDeliveries} delivery record(s) with an uncertain sending result. ` +
+            "Check SMTP logs and reconcile those records before deleting. The campaign was not deleted.",
+        };
+      }
+
+      const deleted = await tx.newsletter.deleteMany({
+        where: {
+          id: campaignId,
+          status: {
+            in: ["DRAFT", "SENDING", "SENT", "FAILED"],
+          },
+        },
+      });
+
+      if (deleted.count !== 1) {
+        return {
+          ok: false,
+          message:
+            "The campaign changed or no longer exists. Refresh the dashboard and try again.",
+        };
+      }
+
+      return {
+        ok: true,
+        data: null,
+      };
+    });
+  } catch (error) {
+    console.error("Failed to delete campaign:", error);
+
+    return {
+      ok: false,
+      message:
+        "Unable to delete the campaign. Refresh the dashboard to confirm its current state before trying again.",
+    };
+  } finally {
+    // Release only the lock acquired by this delete operation.
+    await prisma.campaignQueueLock.deleteMany({
+      where: {
+        id: lockId,
+        token,
+      },
+    });
+  }
+}
+export async function duplicateNewsletter(
+  id: string
+): Promise<Result<{ id: string }>> {
+  const user = await requireUser();
+
+  if (!can(user.role, "newsletters.edit")) {
+    return {
+      ok: false,
+      message: "You do not have permission to duplicate campaigns.",
+    };
+  }
+
+  if (!id.trim()) {
+    return {
+      ok: false,
+      message: "A campaign ID is required.",
+    };
+  }
+
+  const duplicate = await prisma.$transaction(async (tx) => {
+    const source = await tx.newsletter.findUnique({
+      where: { id },
+      include: {
+        groups: {
+          select: { groupId: true },
+        },
+      },
+    });
+
+    if (!source) {
+      return null;
+    }
+
+    return tx.newsletter.create({
+      data: {
+        title: `${source.title} (Copy)`,
+        subject: source.subject,
+        previewText: source.previewText,
+
+        // Preserve saved editor content and rendered HTML.
+        content:
+          source.content === null
+            ? Prisma.DbNull
+            : (source.content as Prisma.InputJsonValue),
+        html: source.html,
+
+        category: source.category,
+        sendToAll: source.sendToAll,
+        templateId: source.templateId,
+        authorId: user.id,
+
+        // A duplicate starts as an unsent draft.
+        status: "DRAFT",
+        scheduledAt: null,
+        sentAt: null,
+        recipientCount: 0,
+        sentCount: 0,
+        failedCount: 0,
+        openCount: 0,
+        clickCount: 0,
+
+        groups:
+          source.groups.length > 0
+            ? {
+                create: source.groups.map(({ groupId }) => ({
+                  groupId,
+                })),
+              }
+            : undefined,
+
+        // Do not copy deliveries or their tracking identifiers.
+      },
+      select: { id: true },
+    });
+  });
+
+  if (!duplicate) {
+    return {
+      ok: false,
+      message: "The campaign no longer exists. Refresh the dashboard.",
+    };
+  }
+
+  return {
+    ok: true,
+    data: duplicate,
+  };
+}
+
+export type EditableNewsletter = {
+  id: string;
+  campaignName: string;
+  subjectLine: string;
+  audience: string;
+  category: string;
+  templateId: string | null;
+  headerImageUrl: string;
+  bodyText: string;
+  previewText: string;
+  blocks?: NewsletterBlock[];
+};
+
+export async function getNewsletterForEditing(
+  id: string
+): Promise<Result<EditableNewsletter>> {
+  const user = await requireUser();
+
+  if (!can(user.role, "newsletters.edit")) {
+    return {
+      ok: false,
+      message: "You do not have permission to edit campaigns.",
+    };
+  }
+
+  const newsletter = await prisma.newsletter.findUnique({
+    where: { id },
+  });
+
+  if (!newsletter) {
+    return { ok: false, message: "Campaign not found." };
+  }
+
+  // Keep this first implementation limited to unsent drafts.
+  if (newsletter.status !== "DRAFT") {
+    return {
+      ok: false,
+      message: "Only draft campaigns can be edited here.",
+    };
+  }
+
+  const content =
+    newsletter.content &&
+    typeof newsletter.content === "object" &&
+    !Array.isArray(newsletter.content)
+      ? (newsletter.content as Record<string, unknown>)
+      : {};
+
+  // Do not silently replace content whose audience cannot be recovered.
+  if (typeof content.audience !== "string" || !content.audience.trim()) {
+    return {
+      ok: false,
+      message: "This campaign has no saved audience and cannot be loaded.",
+    };
+  }
+
+  let blocks: NewsletterBlock[] | undefined;
+
+  try {
+    blocks =
+      content.blocks === undefined ? undefined : parseBlocks(content.blocks);
+  } catch {
+    return {
+      ok: false,
+      message: "This campaign's saved blocks could not be loaded.",
+    };
+  }
+
+  return {
+    ok: true,
+    data: {
+      id: newsletter.id,
+      campaignName: newsletter.title,
+      subjectLine: newsletter.subject,
+      audience: content.audience,
+      category: newsletter.category ?? "General",
+      templateId: newsletter.templateId,
+      headerImageUrl:
+        typeof content.headerImageUrl === "string"
+          ? content.headerImageUrl
+          : "",
+      bodyText: typeof content.bodyText === "string" ? content.bodyText : "",
+      previewText:
+        newsletter.previewText ??
+        (typeof content.previewText === "string" ? content.previewText : ""),
+      blocks,
+    },
+  };
 }
