@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { sendEmail } from "@/lib/email";
 import {
   blocksToText,
   parseBlocks,
@@ -654,4 +655,137 @@ export async function getNewsletterForEditing(
       blocks,
     },
   };
+}
+export type SendNewsletterTestInput = {
+  email: string;
+  subjectLine: string;
+  headerImageUrl: string;
+  previewText?: string;
+  blocks: NewsletterBlock[];
+};
+
+export async function sendNewsletterTest(
+  input: SendNewsletterTestInput
+): Promise<Result<{ email: string }>> {
+  const user = await requireUser();
+
+  if (!can(user.role, "newsletters.publish")) {
+    return {
+      ok: false,
+      message: "You do not have permission to send test newsletters.",
+    };
+  }
+
+  if (!input || typeof input !== "object") {
+    return { ok: false, message: "Invalid test request." };
+  }
+
+  const email = typeof input.email === "string" ? input.email.trim() : "";
+  const subject =
+    typeof input.subjectLine === "string" ? input.subjectLine.trim() : "";
+  const previewText =
+    typeof input.previewText === "string" ? input.previewText.trim() : "";
+
+  // Accept one plain address, not a recipient list or display-name syntax.
+  if (
+    email.length > 254 ||
+    !/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(email)
+  ) {
+    return {
+      ok: false,
+      message: "Enter one valid email address.",
+    };
+  }
+
+  if (!subject || subject.length > 200 || /[\r\n]/.test(subject)) {
+    return {
+      ok: false,
+      message: "Enter a subject line of 200 characters or fewer.",
+    };
+  }
+
+  if (previewText.length > 500) {
+    return {
+      ok: false,
+      message: "Preview text must be 500 characters or fewer.",
+    };
+  }
+
+  if (
+    typeof input.headerImageUrl !== "string" ||
+    input.headerImageUrl.length > 20_000
+  ) {
+    return {
+      ok: false,
+      message: "Invalid header image URL.",
+    };
+  }
+
+  try {
+    const blocks = parseBlocks(input.blocks);
+
+    if (blocks.length === 0) {
+      return {
+        ok: false,
+        message: "Add some newsletter content before sending a test.",
+      };
+    }
+
+    // Personalise the test without looking up or modifying a member.
+    const testBlocks = blocks.map((block) => ({
+      ...block,
+      fields: Object.fromEntries(
+        Object.entries(block.fields).map(([key, value]) => [
+          key,
+          value.replace(/\{\{memberName\}\}/g, "Testing member"),
+        ])
+      ),
+    }));
+
+    const testSubject = subject.replace(
+      /\{\{memberName\}\}/g,
+      "Testing member"
+    );
+
+    const testPreviewText = previewText.replace(
+      /\{\{memberName\}\}/g,
+      "Testing member"
+    );
+
+    const html = renderNewsletter(testBlocks, {
+      subject: testSubject,
+      headerImageUrl: input.headerImageUrl,
+      previewText: testPreviewText,
+      // Do not create real recipient-specific preference/unsubscribe links.
+    });
+
+    const result = await sendEmail({
+      to: email,
+      subject: `[TEST] ${testSubject}`,
+      text: blocksToText(testBlocks),
+      html,
+    });
+
+    if (!result.ok) {
+      console.error("[newsletter-test] Failed:", result.error);
+
+      return {
+        ok: false,
+        message:
+          "The test could not be sent. Check the active email provider in Settings → Integrations.",
+      };
+    }
+
+    return {
+      ok: true,
+      data: { email },
+    };
+  } catch (error) {
+    console.error("[newsletter-test] Failed:", error);
+
+    return {
+      ok: false,
+      message: "Unable to send the test. Check your content and try again.",
+    };
+  }
 }

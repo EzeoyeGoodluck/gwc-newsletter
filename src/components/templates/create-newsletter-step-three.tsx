@@ -36,6 +36,7 @@ import {
   type BlockType,
   type NewsletterBlock,
 } from "@/lib/newsletter-blocks";
+import { sendNewsletterTest } from "@/lib/newsletter-actions";
 
 export interface NewsletterContent {
   subjectLine: string;
@@ -205,9 +206,86 @@ export function CreateNewsletterStepThree({
 }: CreateNewsletterStepThreeProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasMode, setCanvasMode] = useState<"edit" | "preview">("edit");
+  const [testEmail, setTestEmail] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testFeedback, setTestFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  const testSendingRef = useRef(false);
 
   const blocks = footerLast(initialBlocks(content));
   const headerUrl = safeUrl(content.headerImageUrl);
+
+  async function handleSendTest() {
+    if (saving || testSendingRef.current) return;
+
+    const email = testEmail.trim();
+
+    if (
+      email.length > 254 ||
+      !/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(email)
+    ) {
+      setTestFeedback({
+        type: "error",
+        message: "Enter one valid email address.",
+      });
+      return;
+    }
+
+    if (!content.subjectLine.trim()) {
+      setTestFeedback({
+        type: "error",
+        message: "Add an email subject line first.",
+      });
+      return;
+    }
+
+    if (blocks.length === 0) {
+      setTestFeedback({
+        type: "error",
+        message: "Add some content before sending a test.",
+      });
+      return;
+    }
+
+    testSendingRef.current = true;
+    setSendingTest(true);
+    setTestFeedback(null);
+
+    try {
+      const result = await sendNewsletterTest({
+        email,
+        subjectLine: content.subjectLine,
+        headerImageUrl: content.headerImageUrl,
+        previewText: content.previewText ?? "",
+        blocks,
+      });
+
+      if (!result.ok) {
+        setTestFeedback({
+          type: "error",
+          message: result.message,
+        });
+        return;
+      }
+
+      setTestFeedback({
+        type: "success",
+        message: `Test submitted to ${result.data.email}. Check the inbox and spam folder.`,
+      });
+    } catch {
+      setTestFeedback({
+        type: "error",
+        message:
+          "The send result could not be confirmed. Check your inbox before trying again.",
+      });
+    } finally {
+      testSendingRef.current = false;
+      setSendingTest(false);
+    }
+  }
 
   const sidebarTypes = [
     ...BLOCK_TYPES.filter((type) => type !== "footer"),
@@ -872,63 +950,129 @@ export function CreateNewsletterStepThree({
         </div>
       </header>
 
-      <section className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold">
-          <Settings2 className="h-3.5 w-3.5" />
-          Campaign Details
-        </h2>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+        <section
+          aria-label="Send a test newsletter"
+          className="flex min-w-0 flex-col justify-center rounded-xl border border-slate-100 bg-white p-4 shadow-sm"
+        >
+          <h2 className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold">
+            <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+            Quick Test
+          </h2>
 
-        <div className="grid gap-3 md:grid-cols-3">
-          <label className="text-[11px] font-medium">
-            Internal Title
-            <input
-              type="text"
-              value={campaignName}
-              disabled={saving}
-              readOnly={!onCampaignNameChange}
-              className={`${inputClass} mt-1.5`}
-              placeholder="Sunday Bulletin"
-              onChange={(event) => {
-                if (saving) return;
-
-                onCampaignNameChange?.(event.target.value);
-              }}
-            />
-          </label>
-
-          <label className="text-[11px] font-medium">
-            Email Subject Line
-            <input
-              type="text"
-              value={content.subjectLine}
-              disabled={saving}
-              className={`${inputClass} mt-1.5`}
-              placeholder="Join us this Sunday!"
-              onChange={(event) =>
-                updateContent("subjectLine", event.target.value)
+          <div className="flex min-w-0 items-center gap-1.5">
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Test email address</span>
+              <input
+                type="email"
+                value={testEmail}
+                disabled={saving || sendingTest}
+                maxLength={254}
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder="you@example.com"
+                className="block w-full min-w-0 rounded-md border border-[#E3E6EA] bg-[#F4F5F7] px-2 py-2 text-[10px] text-[#002B3D] outline-none focus:border-[#002B3D] focus:ring-2 focus:ring-[#002B3D]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                onChange={(event) => {
+                  setTestEmail(event.target.value);
+                  setTestFeedback(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void handleSendTest();
+                  }
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              aria-label="Send test newsletter"
+              onClick={() => void handleSendTest()}
+              disabled={
+                saving ||
+                sendingTest ||
+                !testEmail.trim() ||
+                !content.subjectLine.trim() ||
+                blocks.length === 0
               }
-            />
-          </label>
+              className="shrink-0 rounded-md bg-[#002B3D] px-2.5 py-2 text-[10px] font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#002B3D] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {sendingTest ? "Sending…" : "Send"}
+            </button>
+          </div>
 
-          <label className="text-[11px] font-medium">
-            Preview Text
-            <input
-              type="text"
-              value={content.previewText ?? ""}
-              disabled={saving}
-              className={`${inputClass} mt-1.5`}
-              placeholder="Service starts at 10AM."
-              onChange={(event) =>
-                updateContent("previewText", event.target.value)
-              }
-            />
-          </label>
-        </div>
-      </section>
+          <div aria-live="polite" aria-atomic="true">
+            {testFeedback && (
+              <p
+                className={`mt-2 break-words text-[10px] leading-4 ${
+                  testFeedback.type === "success"
+                    ? "text-emerald-700"
+                    : "text-red-600"
+                }`}
+              >
+                {testFeedback.message}
+              </p>
+            )}
+          </div>
+        </section>
 
-      <div className="grid items-stretch gap-5 md:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-          <div className="mb-6 flex items-center gap-2">
+        <section className="min-w-0 rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold">
+            <Settings2 className="h-3.5 w-3.5" />
+            Campaign Details
+          </h2>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <label className="min-w-0 text-[11px] font-medium">
+              Internal Title
+              <input
+                type="text"
+                value={campaignName}
+                disabled={saving}
+                readOnly={!onCampaignNameChange}
+                className={`${inputClass} mt-1.5`}
+                placeholder="Sunday Bulletin"
+                onChange={(event) => {
+                  if (saving) return;
+
+                  onCampaignNameChange?.(event.target.value);
+                }}
+              />
+            </label>
+
+            <label className="min-w-0 text-[11px] font-medium">
+              Email Subject Line
+              <input
+                type="text"
+                value={content.subjectLine}
+                disabled={saving}
+                className={`${inputClass} mt-1.5`}
+                placeholder="Join us this Sunday!"
+                onChange={(event) =>
+                  updateContent("subjectLine", event.target.value)
+                }
+              />
+            </label>
+
+            <label className="min-w-0 text-[11px] font-medium">
+              Preview Text
+              <input
+                type="text"
+                value={content.previewText ?? ""}
+                disabled={saving}
+                className={`${inputClass} mt-1.5`}
+                placeholder="Service starts at 10AM."
+                onChange={(event) =>
+                  updateContent("previewText", event.target.value)
+                }
+              />
+            </label>
+          </div>
+        </section>
+
+        <aside className="min-w-0 self-start rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+          <div className="mb-6 flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={onSaveDraft}
@@ -1010,7 +1154,7 @@ export function CreateNewsletterStepThree({
           </p>
         </aside>
 
-        <section className="min-w-0 rounded-xl border border-slate-100 bg-white p-3 shadow-sm sm:p-5">
+        <section className="min-w-0 self-start rounded-xl border border-slate-100 bg-white p-3 shadow-sm sm:p-5">
           {canvasMode === "preview" ? (
             <iframe
               title="Rendered newsletter preview"
