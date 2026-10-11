@@ -62,37 +62,45 @@ export default function SignupPage() {
       setIsSubmitting(false);
     }
   }
+
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:flex lg:items-stretch lg:p-0">
       <aside className="relative hidden overflow-hidden bg-gwc-navy p-16 text-white lg:flex lg:w-[44%] lg:flex-col lg:justify-between xl:p-24">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(246,200,76,0.25),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.1),transparent_38%)]" />
+
         <div className="relative">
           <Link href="/" className="inline-flex items-center gap-3 text-white">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gwc-gold text-sm font-bold text-gwc-gold-text shadow-sm">
               GWC
             </span>
+
             <span>
               <span className="block text-base font-bold leading-5">
-                Sanctuary CMS
+                Glory Worship Church
               </span>
+
               <span className="block text-xs text-slate-300">
-                Church communications
+                Newsletter &amp; Communications
               </span>
             </span>
           </Link>
+
           <h1 className="mt-16 max-w-md text-4xl font-bold leading-tight">
-            Start with a workspace built for your church.
+            Help keep our church family connected.
           </h1>
+
           <p className="mt-5 max-w-md text-base leading-7 text-slate-200">
-            Set up the organization, choose who can help, and create a reliable
-            home for newsletters and member communication.
+            Create your GWC team account to help share church news, ministry
+            updates, and words of encouragement with the Glory Worship Church
+            family.
           </p>
         </div>
+
         <div className="relative space-y-3">
           {[
-            "Create your organization profile",
-            "Set up trusted staff access",
-            "Start communicating with your congregation",
+            "Share Glory Worship Church news and updates",
+            "Support communication across our ministries",
+            "Keep our church family informed and involved",
           ].map((item) => (
             <div
               key={item}
@@ -116,26 +124,31 @@ export default function SignupPage() {
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gwc-navy text-sm font-bold text-white shadow-sm">
             GWC
           </span>
+
           <span>
             <span className="block text-base font-bold leading-5">
-              Sanctuary CMS
+              Glory Worship Church
             </span>
+
             <span className="block text-xs text-slate-500">
-              Church communications
+              Newsletter &amp; Communications
             </span>
           </span>
         </Link>
 
         <div className="mt-10 lg:mt-0">
           <p className="text-sm font-semibold text-gwc-navy">
-            Create workspace
+            GWC team registration
           </p>
+
           <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-            Set up your church account
+            Create your GWC account
           </h2>
+
           <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">
-            This creates the first Owner account for your church. Invite
-            additional staff after setup is complete.
+            This page is for team members authorised to use Glory Worship
+            Church’s newsletter system. If you have received a staff invitation,
+            use the invitation link below instead.
           </p>
         </div>
 
@@ -156,16 +169,18 @@ export default function SignupPage() {
             <span className="text-sm font-semibold text-slate-700">
               Your full name
             </span>
+
             <span className="relative mt-2 block">
               <UserRound
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
                 aria-hidden="true"
               />
+
               <input
                 required
                 name="fullName"
                 autoComplete="name"
-                placeholder="Pastor or administrator name"
+                placeholder="Enter your full name"
                 className="w-full rounded-md border border-slate-200 py-3 pl-10 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
               />
             </span>
@@ -173,13 +188,15 @@ export default function SignupPage() {
 
           <label className="block sm:col-span-2">
             <span className="text-sm font-semibold text-slate-700">
-              Church or organization name
+              Church name
             </span>
+
             <span className="relative mt-2 block">
               <Building2
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
                 aria-hidden="true"
               />
+
               <input
                 required
                 name="organizationName"
@@ -191,19 +208,21 @@ export default function SignupPage() {
 
           <label className="block sm:col-span-2">
             <span className="text-sm font-semibold text-slate-700">
-              Work email address
+              Email address
             </span>
+
             <span className="relative mt-2 block">
               <Mail
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
                 aria-hidden="true"
               />
+
               <input
                 required
                 name="email"
                 type="email"
                 autoComplete="email"
-                placeholder="you@church.org"
+                placeholder="Enter your email address"
                 className="w-full rounded-md border border-slate-200 py-3 pl-10 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
               />
             </span>
@@ -213,11 +232,13 @@ export default function SignupPage() {
             <span className="text-sm font-semibold text-slate-700">
               Password
             </span>
+
             <span className="relative mt-2 block">
               <LockKeyhole
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
                 aria-hidden="true"
               />
+
               <input
                 required
                 minLength={8}
@@ -227,6 +248,7 @@ export default function SignupPage() {
                 placeholder="At least 8 characters"
                 className="w-full rounded-md border border-slate-200 py-3 pl-10 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
               />
+
               <button
                 type="button"
                 onClick={() => setShowPassword((current) => !current)}
@@ -246,11 +268,13 @@ export default function SignupPage() {
             <span className="text-sm font-semibold text-slate-700">
               Confirm password
             </span>
+
             <span className="relative mt-2 block">
               <LockKeyhole
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
                 aria-hidden="true"
               />
+
               <input
                 required
                 minLength={8}
@@ -260,6 +284,7 @@ export default function SignupPage() {
                 placeholder="Repeat your password"
                 className="w-full rounded-md border border-slate-200 py-3 pl-10 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
               />
+
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword((current) => !current)}
@@ -283,9 +308,10 @@ export default function SignupPage() {
               type="checkbox"
               className="mt-0.5 h-4 w-4 rounded border-slate-300 text-gwc-navy focus:ring-gwc-navy"
             />
+
             <span className="text-sm leading-6 text-slate-600">
-              I confirm that I am authorized to create and manage this church
-              workspace.
+              I confirm that I am authorised to register for Glory Worship
+              Church’s newsletter and communications system.
             </span>
           </label>
 
@@ -294,7 +320,8 @@ export default function SignupPage() {
             disabled={isSubmitting}
             className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
           >
-            {isSubmitting ? "Preparing workspace…" : "Create workspace"}
+            {isSubmitting ? "Creating your account…" : "Create GWC account"}
+
             {!isSubmitting && (
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             )}
@@ -306,15 +333,16 @@ export default function SignupPage() {
             className="mt-0.5 h-5 w-5 shrink-0 text-gwc-navy"
             aria-hidden="true"
           />
+
           <p className="text-sm leading-6 text-slate-500">
-            Your account becomes the workspace Owner. You can later invite
-            trusted administrators, editors, and viewers with only the access
-            they need.
+            This registration is for the GWC communications team, not for
+            joining the church newsletter mailing list. Your available tools
+            depend on the account permissions assigned to you.
           </p>
         </div>
 
         <p className="mt-6 text-center text-sm text-slate-500">
-          Already have a workspace?{" "}
+          Already have a GWC account?{" "}
           <Link
             href="/login"
             className="font-semibold text-gwc-navy transition hover:opacity-75"
@@ -326,7 +354,7 @@ export default function SignupPage() {
             href="/accept-invite"
             className="font-semibold text-gwc-navy transition hover:opacity-75"
           >
-            Accept an invitation
+            Accept your invitation
           </Link>
         </p>
       </section>
