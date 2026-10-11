@@ -42,6 +42,94 @@ const VALID_STATUSES: CampaignStatus[] = [
   "failed",
 ];
 
+function DashboardMetricsSkeleton() {
+  return (
+    <div role="status" aria-busy="true">
+      <span className="sr-only">Loading dashboard metrics…</span>
+
+      <div
+        aria-hidden="true"
+        className="grid animate-pulse grid-cols-1 gap-4 motion-reduce:animate-none sm:grid-cols-2 xl:grid-cols-4"
+      >
+        {[0, 1, 2, 3].map((index) => (
+          <div
+            key={index}
+            className="min-w-0 rounded-xl border border-gwc-border/20 bg-white p-5 shadow-sm"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="h-3 w-28 max-w-full rounded bg-slate-200" />
+              <div className="h-9 w-9 shrink-0 rounded-lg bg-slate-100" />
+            </div>
+
+            <div className="mt-4 h-8 w-20 rounded bg-slate-200" />
+            <div className="mt-3 h-2.5 w-36 max-w-full rounded bg-slate-100" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CampaignsTableSkeleton({
+  message = "Loading campaigns…",
+}: {
+  message?: string;
+}) {
+  return (
+    <div role="status" aria-busy="true">
+      <span className="sr-only">{message}</span>
+
+      <div
+        aria-hidden="true"
+        className="animate-pulse motion-reduce:animate-none"
+      >
+        {/* Table headings */}
+        <div className="flex items-center gap-4 border-b border-gwc-border/20 bg-slate-50 px-6 py-4">
+          <div className="h-3 min-w-0 flex-1 rounded bg-slate-200" />
+          <div className="hidden h-3 w-24 rounded bg-slate-200 sm:block" />
+          <div className="hidden h-3 w-28 rounded bg-slate-200 lg:block" />
+          <div className="hidden h-3 w-24 rounded bg-slate-200 xl:block" />
+          <div className="h-3 w-10 rounded bg-slate-200" />
+        </div>
+
+        {/* Campaign rows */}
+        <div className="divide-y divide-gwc-border/20">
+          {Array.from({ length: PAGE_SIZE }, (_, index) => (
+            <div key={index} className="flex items-center gap-4 px-6 py-5">
+              <div className="min-w-0 flex-1 space-y-2.5">
+                <div className="h-4 w-52 max-w-full rounded bg-slate-200" />
+                <div className="h-2.5 w-32 max-w-full rounded bg-slate-100" />
+              </div>
+
+              <div className="hidden h-6 w-24 shrink-0 rounded-full bg-slate-100 sm:block" />
+
+              <div className="hidden w-28 shrink-0 space-y-2 lg:block">
+                <div className="h-3 w-24 rounded bg-slate-200" />
+                <div className="h-2.5 w-16 rounded bg-slate-100" />
+              </div>
+
+              <div className="hidden h-3 w-24 shrink-0 rounded bg-slate-100 xl:block" />
+
+              <div className="h-8 w-8 shrink-0 rounded-md bg-slate-100" />
+            </div>
+          ))}
+        </div>
+
+        {/* Pagination */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-gwc-border/20 px-6 py-4">
+          <div className="h-3 w-40 rounded bg-slate-100" />
+
+          <div className="flex gap-2">
+            <div className="h-8 w-8 rounded-md bg-slate-100" />
+            <div className="h-8 w-8 rounded-md bg-slate-200" />
+            <div className="h-8 w-8 rounded-md bg-slate-100" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -353,8 +441,6 @@ export default function DashboardPage() {
       return;
     }
 
-    // These features require additional pages or server actions.
-    // Show an explanation instead of silently doing nothing.
     const unavailableMessages: Record<string, string> = {
       Archive:
         "Archive is not implemented yet. The database currently has no archive field or archive status.",
@@ -380,8 +466,6 @@ export default function DashboardPage() {
 
   const hasFilters = status !== "all" || categories.length > 0 || search !== "";
 
-  const showInitialLoading = campaignsLoading && !hasEverLoaded;
-
   const showNoCampaignsEmpty =
     !campaignsLoading &&
     !campaignsError &&
@@ -395,7 +479,7 @@ export default function DashboardPage() {
     hasFilters;
 
   const showCampaignsTable =
-    !showInitialLoading &&
+    !campaignsLoading &&
     !campaignsError &&
     !showNoCampaignsEmpty &&
     !showNoMatchesEmpty;
@@ -403,7 +487,7 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-[32px] leading-10 font-gwc-heading font-semibold text-gwc-text-heading">
+        <h1 className="font-gwc-heading text-[32px] font-semibold leading-10 text-gwc-text-heading">
           Newsletter Campaigns
         </h1>
 
@@ -413,17 +497,21 @@ export default function DashboardPage() {
       </div>
 
       <div className="mb-6">
-        <MetricsRow
-          metrics={metrics}
-          isLoading={metricsLoading}
-          onFilterDrafts={() => updateFilters({ status: "draft" })}
-          onFilterSent={() => updateFilters({ status: "sent" })}
-        />
+        {metricsLoading ? (
+          <DashboardMetricsSkeleton />
+        ) : (
+          <MetricsRow
+            metrics={metrics}
+            isLoading={false}
+            onFilterDrafts={() => updateFilters({ status: "draft" })}
+            onFilterSent={() => updateFilters({ status: "sent" })}
+          />
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gwc-border/20 bg-white shadow-[0_4px_20px_rgba(0,58,93,0.05)]">
         <div className="flex flex-col gap-4 border-b border-gwc-border/20 bg-gwc-surface/80 px-6 py-6 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-xl font-gwc-heading font-semibold text-gwc-text-heading">
+          <h2 className="font-gwc-heading text-xl font-semibold text-gwc-text-heading">
             Recent Campaigns
           </h2>
 
@@ -452,20 +540,22 @@ export default function DashboardPage() {
           </p>
         )}
 
-        {showInitialLoading && (
-          <div role="status" className="px-6 py-10 text-sm text-gwc-text-muted">
-            Loading campaigns…
-          </div>
+        {campaignsLoading && (
+          <CampaignsTableSkeleton
+            message={
+              hasEverLoaded ? "Refreshing campaigns…" : "Loading campaigns…"
+            }
+          />
         )}
 
-        {campaignsError && !hasEverLoaded && (
+        {!campaignsLoading && campaignsError && !hasEverLoaded && (
           <CampaignsErrorState onRetry={loadCampaigns} />
         )}
 
-        {campaignsError && hasEverLoaded && (
+        {!campaignsLoading && campaignsError && hasEverLoaded && (
           <>
-            <div className="flex items-center justify-between gap-3 px-6 pt-4">
-              <p className="text-sm text-red-600">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-4">
+              <p role="alert" className="text-sm text-red-600">
                 Couldn&apos;t refresh campaigns. Showing last loaded data.
               </p>
 
@@ -497,15 +587,6 @@ export default function DashboardPage() {
 
         {showCampaignsTable && (
           <>
-            {campaignsLoading && (
-              <p
-                role="status"
-                className="px-6 pt-4 text-sm text-gwc-text-muted"
-              >
-                Refreshing campaigns…
-              </p>
-            )}
-
             <CampaignsTable
               campaigns={campaigns}
               onAction={handleCampaignAction}

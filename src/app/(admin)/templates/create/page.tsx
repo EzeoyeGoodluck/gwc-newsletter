@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-
 import { useRouter, useSearchParams } from "next/navigation";
 
 import {
@@ -50,6 +49,176 @@ interface WizardInnerProps {
   reviewRequested: boolean;
 }
 
+function NewsletterEditorSkeleton({
+  message = "Loading campaign…",
+}: {
+  message?: string;
+}) {
+  return (
+    <div role="status" aria-busy="true" className="space-y-5">
+      <span className="sr-only">{message}</span>
+
+      <div
+        aria-hidden="true"
+        className="animate-pulse space-y-5 motion-reduce:animate-none"
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0 space-y-3">
+            <div className="h-3 w-28 rounded bg-slate-200" />
+            <div className="h-7 w-56 max-w-full rounded bg-slate-200" />
+            <div className="h-3 w-36 rounded bg-slate-200" />
+          </div>
+
+          <div className="hidden h-9 w-32 shrink-0 rounded-lg bg-slate-200 sm:block" />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="flex min-w-0 flex-col justify-center rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+            <div className="mb-3 h-3 w-20 rounded bg-slate-200" />
+
+            <div className="flex gap-2">
+              <div className="h-8 min-w-0 flex-1 rounded-md bg-slate-100" />
+              <div className="h-8 w-12 shrink-0 rounded-md bg-slate-200" />
+            </div>
+          </div>
+
+          <div className="min-w-0 rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+            <div className="mb-4 h-3 w-28 rounded bg-slate-200" />
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              {[0, 1, 2].map((index) => (
+                <div key={index} className="space-y-2">
+                  <div className="h-2.5 w-20 rounded bg-slate-200" />
+                  <div className="h-9 w-full rounded-md bg-slate-100" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="min-w-0 self-start rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+            <div className="mb-5 flex gap-2 border-b border-slate-100 pb-4">
+              <div className="h-8 flex-1 rounded-md bg-slate-200" />
+              <div className="h-8 flex-1 rounded-md bg-slate-200" />
+            </div>
+
+            <div className="mb-2 h-4 w-28 rounded bg-slate-200" />
+            <div className="mb-5 h-2.5 w-36 rounded bg-slate-100" />
+
+            <div className="space-y-2">
+              {Array.from({ length: 8 }, (_, index) => (
+                <div
+                  key={index}
+                  className="flex h-10 items-center gap-3 rounded-md bg-slate-100 px-3"
+                >
+                  <div className="h-4 w-4 shrink-0 rounded bg-slate-200" />
+                  <div className="h-2.5 flex-1 rounded bg-slate-200" />
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 h-2.5 w-20 rounded bg-slate-100" />
+          </div>
+
+          <div className="min-w-0 self-start rounded-xl border border-slate-100 bg-white p-3 shadow-sm sm:p-5">
+            <div className="mx-auto max-w-[600px] overflow-hidden rounded-lg border border-slate-100 bg-white shadow-sm">
+              <div className="flex h-28 flex-col items-center justify-center gap-3 bg-[#002B3D]/10 px-6">
+                <div className="h-6 w-64 max-w-full rounded bg-[#002B3D]/15" />
+                <div className="h-3 w-32 rounded bg-[#002B3D]/10" />
+              </div>
+
+              <div className="space-y-4 px-4 py-5 sm:px-6">
+                <div className="rounded-lg bg-slate-50 p-4">
+                  <div className="h-5 w-40 max-w-full rounded bg-slate-200" />
+                </div>
+
+                <div className="space-y-3 rounded-lg bg-slate-50 p-4">
+                  <div className="h-4 w-28 rounded bg-slate-200" />
+                  <div className="h-3 w-full rounded bg-slate-200" />
+                  <div className="h-3 w-11/12 rounded bg-slate-200" />
+                  <div className="h-3 w-4/5 rounded bg-slate-200" />
+                </div>
+
+                <div className="space-y-3 rounded-lg bg-[#C3D1D9]/40 p-5">
+                  <div className="h-3 w-full rounded bg-[#002B3D]/10" />
+                  <div className="h-3 w-4/5 rounded bg-[#002B3D]/10" />
+                  <div className="h-2.5 w-28 rounded bg-[#002B3D]/10" />
+                </div>
+
+                <div className="flex flex-col gap-4 rounded-lg bg-slate-100 p-4 sm:flex-row sm:items-center">
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="h-3 w-36 max-w-full rounded bg-slate-200" />
+                    <div className="h-2.5 w-full rounded bg-slate-200" />
+                    <div className="h-2.5 w-3/4 rounded bg-slate-200" />
+                  </div>
+
+                  <div className="h-10 w-full shrink-0 rounded-md bg-[#002B3D]/15 sm:w-40" />
+                </div>
+
+                <div className="space-y-3 rounded-lg bg-slate-50 p-5">
+                  <div className="h-3 w-full rounded bg-slate-200" />
+                  <div className="h-3 w-4/5 rounded bg-slate-200" />
+                  <div className="mx-auto h-9 w-32 rounded-md bg-[#FFD85B]/40" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TemplateLibrarySkeleton() {
+  return (
+    <div role="status" aria-busy="true" className="space-y-8">
+      <span className="sr-only">Loading newsletter templates…</span>
+
+      <div
+        aria-hidden="true"
+        className="animate-pulse space-y-8 motion-reduce:animate-none"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 space-y-3">
+            <div className="h-7 w-48 max-w-full rounded bg-slate-200" />
+            <div className="h-3 w-64 max-w-full rounded bg-slate-200" />
+          </div>
+
+          <div className="h-10 w-40 rounded-lg bg-slate-200" />
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((index) => (
+            <div
+              key={index}
+              className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm"
+            >
+              <div className="h-[220px] bg-slate-200" />
+
+              <div className="space-y-4 p-5">
+                <div className="h-5 w-20 rounded-full bg-slate-100" />
+                <div className="h-5 w-3/4 rounded bg-slate-200" />
+
+                <div className="space-y-2">
+                  <div className="h-3 w-full rounded bg-slate-100" />
+                  <div className="h-3 w-5/6 rounded bg-slate-100" />
+                  <div className="h-3 w-2/3 rounded bg-slate-100" />
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-3">
+                  <div className="h-3 w-24 rounded bg-slate-100" />
+                  <div className="h-10 w-28 rounded-lg bg-slate-200" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="h-28 rounded-xl border-2 border-dashed border-slate-200 bg-white" />
+      </div>
+    </div>
+  );
+}
+
 function CreateNewsletterWizardInner({
   initialTemplateId,
   startBlank,
@@ -82,7 +251,6 @@ function CreateNewsletterWizardInner({
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
 
   const [contentLoading, setContentLoading] = useState(requiresInitialContent);
-
   const [contentLoadError, setContentLoadError] = useState("");
 
   const [existingCampaignId, setExistingCampaignId] = useState<string | null>(
@@ -187,7 +355,6 @@ function CreateNewsletterWizardInner({
     setContent({
       subjectLine: design.subjectLine,
 
-      // Only use the image saved in the newsletter design.
       // Do not substitute the library thumbnail.
       headerImageUrl: design.headerImageUrl,
 
@@ -207,8 +374,7 @@ function CreateNewsletterWizardInner({
     return true;
   }, []);
 
-  // Existing campaigns load their own saved content.
-  // Template defaults must never overwrite them.
+  // Saved campaigns must not be overwritten by template defaults.
   useEffect(() => {
     if (!campaignId) return;
 
@@ -334,8 +500,7 @@ function CreateNewsletterWizardInner({
           result.data.find((template) => template.id === initialTemplateId) ??
           null;
 
-        // Older templates may not be listed in the new library,
-        // but can still be retrieved by their saved ID.
+        // Older templates can still be retrieved by their saved ID.
         if (!found) {
           const templateResult = await getTemplate(initialTemplateId);
 
@@ -754,9 +919,11 @@ function CreateNewsletterWizardInner({
 
   if (contentLoading) {
     return (
-      <div role="status" className="p-6 text-sm text-gwc-text-muted">
-        {campaignId ? "Loading campaign…" : "Loading newsletter design…"}
-      </div>
+      <NewsletterEditorSkeleton
+        message={
+          campaignId ? "Loading campaign…" : "Loading newsletter design…"
+        }
+      />
     );
   }
 
@@ -796,6 +963,10 @@ function CreateNewsletterWizardInner({
         </div>
       </div>
     );
+  }
+
+  if (step === 1 && templatesLoading && templates.length === 0) {
+    return <TemplateLibrarySkeleton />;
   }
 
   if (step === 1) {
@@ -1036,9 +1207,7 @@ export default function CreateNewsletterWizard() {
   return (
     <Suspense
       fallback={
-        <div className="p-6 text-sm text-gwc-text-muted">
-          Loading newsletter wizard…
-        </div>
+        <NewsletterEditorSkeleton message="Loading newsletter wizard…" />
       }
     >
       <CreateNewsletterWizardFromParams />
