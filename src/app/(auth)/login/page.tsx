@@ -66,24 +66,28 @@ export default function LoginPage() {
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gwc-navy text-sm font-bold text-white shadow-sm">
             GWC
           </span>
+
           <span>
             <span className="block text-base font-bold leading-5">
-              Sanctuary CMS
+              Glory Worship Church
             </span>
+
             <span className="block text-xs text-slate-500">
-              Church communications
+              Newsletter &amp; Communications
             </span>
           </span>
         </Link>
 
         <div className="mt-12">
           <p className="text-sm font-semibold text-gwc-navy">Welcome back</p>
+
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-            Sign in to your workspace
+            Sign in to the GWC dashboard
           </h1>
+
           <p className="mt-3 max-w-md text-sm leading-6 text-slate-500">
-            Manage newsletters, members, communication preferences, and church
-            administration from one place.
+            Create newsletters, share ministry updates, and manage communication
+            with the Glory Worship Church family.
           </p>
         </div>
 
@@ -101,17 +105,19 @@ export default function LoginPage() {
             <span className="text-sm font-semibold text-slate-700">
               Email address
             </span>
+
             <span className="relative mt-2 block">
               <Mail
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
                 aria-hidden="true"
               />
+
               <input
                 required
                 name="email"
                 type="email"
                 autoComplete="email"
-                placeholder="you@church.org"
+                placeholder="Enter your account email"
                 className="w-full rounded-md border border-slate-200 py-3 pl-10 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
               />
             </span>
@@ -127,11 +133,13 @@ export default function LoginPage() {
                 Forgot password?
               </Link>
             </span>
+
             <span className="relative mt-2 block">
               <LockKeyhole
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
                 aria-hidden="true"
               />
+
               <input
                 required
                 name="password"
@@ -140,6 +148,7 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 className="w-full rounded-md border border-slate-200 py-3 pl-10 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-gwc-navy focus:ring-2 focus:ring-gwc-navy/10"
               />
+
               <button
                 type="button"
                 onClick={() => setShowPassword((current) => !current)}
@@ -171,6 +180,7 @@ export default function LoginPage() {
             className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-gwc-navy px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Signing in…" : "Sign in"}
+
             {!isSubmitting && (
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             )}
@@ -179,56 +189,65 @@ export default function LoginPage() {
 
         <div className="mt-7 rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-sm font-semibold text-slate-800">
-            Need a church workspace?
+            Setting up the GWC workspace?
           </p>
+
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Create a workspace only if you are authorized to set up your
-            church’s Sanctuary CMS account.
+            Workspace registration is for team members authorised to set up
+            Glory Worship Church’s newsletter system. If you have a staff
+            invitation, use the invitation link below instead.
           </p>
+
           <Link
             href="/signup"
             className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-gwc-navy transition hover:opacity-75"
           >
-            Create church workspace
+            Set up the GWC workspace
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
 
         <p className="mt-6 text-center text-sm text-slate-500">
-          Have a staff invitation?{" "}
+          Invited to the GWC team?{" "}
           <Link
             href="/accept-invite"
             className="font-semibold text-gwc-navy transition hover:opacity-75"
           >
-            Accept invitation
+            Accept your invitation
           </Link>
         </p>
       </section>
 
       <aside className="relative hidden overflow-hidden bg-gwc-navy p-16 text-white lg:flex lg:w-1/2 lg:flex-col lg:justify-between xl:p-24">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(246,200,76,0.24),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.1),transparent_34%)]" />
+
         <div className="relative">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-gwc-gold">
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-            One place for church communication
+            Connecting the Glory Worship Church family
           </span>
+
           <h2 className="mt-7 max-w-lg text-4xl font-bold leading-tight">
-            Keep your congregation connected every week.
+            Keeping our church family informed, encouraged, and connected.
           </h2>
+
           <p className="mt-5 max-w-md text-base leading-7 text-slate-200">
-            Create meaningful newsletters, manage member preferences, and give
-            every ministry the right tools and access.
+            From Sunday gatherings to ministry activities, share what is
+            happening at Glory Worship Church and help our community stay
+            involved throughout the week.
           </p>
         </div>
+
         <div className="relative rounded-xl border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
           <p className="text-sm font-semibold text-white">
-            Built for your church team
+            One dashboard for the GWC team
           </p>
+
           <div className="mt-4 grid gap-3 text-sm text-slate-200 sm:grid-cols-2">
-            <span>• Newsletter creation</span>
-            <span>• Member audiences</span>
-            <span>• Privacy controls</span>
-            <span>• Role-based access</span>
+            <span>• Church newsletters</span>
+            <span>• Members &amp; subscribers</span>
+            <span>• Communication preferences</span>
+            <span>• Team roles &amp; access</span>
           </div>
         </div>
       </aside>
