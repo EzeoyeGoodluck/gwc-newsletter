@@ -341,6 +341,19 @@ export default function DashboardPage() {
 
   const handleCampaignAction = async (action: string, campaign: Campaign) => {
     if (actionInProgressRef.current) return;
+    if (
+      action === "View Report" ||
+      action === "View Progress" ||
+      action === "Preview"
+    ) {
+      const campaignPath = `/dashboard/campaign/${encodeURIComponent(campaign.id)}`;
+
+      router.push(
+        action === "Preview" ? `${campaignPath}?view=preview` : campaignPath
+      );
+
+      return;
+    }
 
     // Edit opens the editor.
     // Review and Send Now open the review/confirmation step.

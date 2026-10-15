@@ -8,13 +8,20 @@ import type { Campaign, CampaignStatus } from "@/lib/types/dashboard";
 import { cn } from "@/lib/utils";
 
 const actionsByStatus: Record<CampaignStatus, string[]> = {
-  draft: ["Edit", "Review", "Send Now", "Duplicate", "Archive", "Delete"],
+  draft: [
+    "Edit",
+    "Review",
+    "Send Now",
+    "Preview",
+    "Duplicate",
+    "Archive",
+    "Delete",
+  ],
   scheduled: ["Pause/Edit", "Reschedule", "Cancel", "Preview"],
   sending: ["View Progress", "Preview", "Delete"],
-  sent: ["View Report", "Duplicate", "Archive", "Delete"],
-  failed: ["View Report", "Edit", "Duplicate", "Delete"],
+  sent: ["View Report", "Preview", "Duplicate", "Archive", "Delete"],
+  failed: ["View Report", "Preview", "Duplicate", "Delete"],
 };
-
 interface CampaignActionsProps {
   campaign: Campaign;
   onAction: (action: string, campaign: Campaign) => void;
