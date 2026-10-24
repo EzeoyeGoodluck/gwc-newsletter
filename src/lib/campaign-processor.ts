@@ -4,7 +4,14 @@ import { randomUUID } from "node:crypto";
 import { Prisma, type NewsletterStatus } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+
 import { getActiveProvider, sendEmail, type SendResult } from "@/lib/email";
+
+import {
+  parseBlocks,
+  renderNewsletter,
+  type NewsletterBlock,
+} from "@/lib/newsletter-blocks";
 
 type ProcessInput = {
   campaignId: string;
@@ -89,6 +96,13 @@ function createUnsubscribeUrl(
   origin: string,
   unsubscribeToken: string
 ): string {
+  if (!unsubscribeToken.trim()) {
+    throw new ProcessorError(
+      "A recipient has no unsubscribe token. The delivery was not submitted.",
+      500
+    );
+  }
+
   const url = new URL("/unsubscribe", origin);
 
   url.searchParams.set("token", unsubscribeToken);
@@ -96,6 +110,7 @@ function createUnsubscribeUrl(
   return url.toString();
 }
 
+// Fallback for legacy HTML or newsletters without a footer block.
 function addUnsubscribeFooter(html: string, unsubscribeUrl: string): string {
   const footer = `
     <table
@@ -211,6 +226,42 @@ export async function processCampaignBatch(input: ProcessInput) {
       throw new ProcessorError("The campaign has no saved audience.", 400);
     }
 
+    // Validate saved blocks before claiming any deliveries.
+    // Missing blocks indicate an older, HTML-only newsletter.
+    let emailBlocks: NewsletterBlock[] | null = null;
+
+    if (content.blocks !== undefined) {
+      try {
+        emailBlocks = parseBlocks(content.blocks).map((block) =>
+          block.type === "footer"
+            ? {
+                ...block,
+                fields: {
+                  ...block.fields,
+                  unsubscribeLabel:
+                    block.fields.unsubscribeLabel?.trim() || "Unsubscribe",
+                },
+              }
+            : block
+        );
+      } catch {
+        throw new ProcessorError(
+          "The campaign's saved newsletter blocks are invalid. Review the campaign before sending.",
+          400
+        );
+      }
+    }
+
+    const hasFooterBlock =
+      emailBlocks?.some((block) => block.type === "footer") ?? false;
+
+    const headerImageUrl =
+      typeof content.headerImageUrl === "string" ? content.headerImageUrl : "";
+
+    const previewText =
+      campaign.previewText ??
+      (typeof content.previewText === "string" ? content.previewText : "");
+
     const isGroupAudience =
       audience !== "All Active Members" && audience !== "All Members";
 
@@ -232,7 +283,8 @@ export async function processCampaignBatch(input: ProcessInput) {
       );
     }
 
-    // Never retry an uncertain SMTP submission blindly.
+    // A previously claimed QUEUED delivery may already have
+    // reached SMTP. Never retry it blindly.
     const interruptedCount = await prisma.delivery.count({
       where: {
         newsletterId: campaign.id,
@@ -261,7 +313,7 @@ export async function processCampaignBatch(input: ProcessInput) {
     const results: DeliveryResult[] = [];
 
     if (queuedCount > 0) {
-      // Validate the public URL before claiming any deliveries.
+      // Validate configuration before claiming deliveries.
       const publicAppOrigin = getPublicAppOrigin();
 
       const provider = await getActiveProvider();
@@ -288,6 +340,7 @@ export async function processCampaignBatch(input: ProcessInput) {
         );
       }
 
+      // Counts cover recorded campaign deliveries only.
       const [sentLastHour, sentLastDay] = await Promise.all([
         prisma.delivery.count({
           where: {
@@ -366,6 +419,7 @@ export async function processCampaignBatch(input: ProcessInput) {
       }
 
       for (const delivery of batch) {
+        // Recheck eligibility before claiming this delivery.
         const member = delivery.memberId
           ? await prisma.member.findUnique({
               where: {
@@ -376,10 +430,7 @@ export async function processCampaignBatch(input: ProcessInput) {
                 email: true,
                 status: true,
                 membershipStatus: true,
-
-                // Used only to create this recipient's link.
                 unsubscribeToken: true,
-
                 groups: {
                   select: {
                     groupId: true,
@@ -406,8 +457,8 @@ export async function processCampaignBatch(input: ProcessInput) {
           const reason =
             "Not sent: the recipient is no longer eligible for this audience, or the queued email no longer matches the member.";
 
-          // Preserve the current schema's suppression behavior.
-          // There is no SKIPPED delivery status.
+          // Preserve the existing suppression behavior.
+          // The current schema has no SKIPPED status.
           const excluded = await prisma.delivery.updateMany({
             where: {
               id: delivery.id,
@@ -438,12 +489,24 @@ export async function processCampaignBatch(input: ProcessInput) {
           member.unsubscribeToken
         );
 
-        const personalizedHtml = personalize(campaignHtml, name, true);
+        // Block-based newsletters receive the real URL in
+        // their original footer, beside Manage Preferences.
+        const renderedHtml =
+          emailBlocks !== null
+            ? renderNewsletter(emailBlocks, {
+                subject: campaign.subject,
+                headerImageUrl,
+                previewText,
+                unsubscribeUrl,
+              })
+            : campaignHtml;
 
-        const emailHtml = addUnsubscribeFooter(
-          personalizedHtml,
-          unsubscribeUrl
-        );
+        const personalizedHtml = personalize(renderedHtml, name, true);
+
+        // Append a footer only if there is no rendered footer.
+        const emailHtml = hasFooterBlock
+          ? personalizedHtml
+          : addUnsubscribeFooter(personalizedHtml, unsubscribeUrl);
 
         const emailText = [
           typeof content.bodyText === "string"
@@ -455,6 +518,8 @@ export async function processCampaignBatch(input: ProcessInput) {
           .filter(Boolean)
           .join("\n\n");
 
+        // Build the email before claiming the delivery, so a
+        // rendering/configuration error does not create a claim.
         const claimed = await prisma.delivery.updateMany({
           where: {
             id: delivery.id,
@@ -480,7 +545,7 @@ export async function processCampaignBatch(input: ProcessInput) {
             text: emailText,
           });
         } catch (error) {
-          // Keep the claim if SMTP's outcome is uncertain.
+          // Preserve the claim when SMTP's outcome is uncertain.
           throw new ProcessorError(
             `Processing stopped for delivery ${delivery.id}. Inspect its result before retrying. ${
               error instanceof Error ? error.message : ""
@@ -489,6 +554,8 @@ export async function processCampaignBatch(input: ProcessInput) {
           );
         }
 
+        // If this write fails after SMTP submission, the claim
+        // remains and the next run will require investigation.
         await prisma.delivery.update({
           where: {
             id: delivery.id,
