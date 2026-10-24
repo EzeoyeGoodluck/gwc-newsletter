@@ -25,6 +25,7 @@ import {
   removeMember,
   createCategory,
   type MemberFormData,
+  type MemberProfileData,
 } from "./actions";
 
 const PAGE_SIZE = 10;
@@ -38,7 +39,6 @@ function MembersDirectorySkeleton() {
         aria-hidden="true"
         className="animate-pulse space-y-6 motion-reduce:animate-none"
       >
-        {/* Heading and actions */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 space-y-3">
             <div className="h-8 w-52 max-w-full rounded bg-slate-200" />
@@ -51,14 +51,12 @@ function MembersDirectorySkeleton() {
           </div>
         </div>
 
-        {/* Search and filters */}
         <div className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm md:flex-row">
           <div className="h-10 min-w-0 flex-1 rounded-lg bg-slate-100" />
           <div className="h-10 w-full rounded-lg bg-slate-100 md:w-40" />
           <div className="h-10 w-full rounded-lg bg-slate-100 md:w-44" />
         </div>
 
-        {/* Member rows */}
         <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
           <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50 px-5 py-4">
             <div className="h-3 w-40 rounded bg-slate-200" />
@@ -69,10 +67,7 @@ function MembersDirectorySkeleton() {
 
           <div className="divide-y divide-slate-100">
             {Array.from({ length: PAGE_SIZE }, (_, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-4 px-5 py-4"
-              >
+              <div key={index} className="flex items-center gap-4 px-5 py-4">
                 <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200" />
 
                 <div className="min-w-0 flex-1 space-y-2">
@@ -152,6 +147,7 @@ export default function MembersPage() {
   const [page, setPage] = useState(1);
 
   const [roleFilter, setRoleFilter] = useState("All Members");
+
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
 
   const [addMemberOpen, setAddMemberOpen] = useState(false);
@@ -159,10 +155,11 @@ export default function MembersPage() {
 
   const [editing, setEditing] = useState<{
     id: string;
-    data: MemberFormData;
+    data: MemberProfileData;
   } | null>(null);
 
   const [viewMode, setViewMode] = useState<"edit" | "view">("edit");
+
   const [message, setMessage] = useState<string | null>(null);
 
   const [membersLoading, setMembersLoading] = useState(true);
@@ -173,7 +170,10 @@ export default function MembersPage() {
   const membersRequestRef = useRef(0);
   const categoriesRequestRef = useRef(0);
   const profileRequestRef = useRef(0);
+
   const profileLoadingRef = useRef(false);
+  const savingEditRef = useRef(false);
+  const removingMemberRef = useRef(false);
   const mountedRef = useRef(false);
 
   useEffect(() => {
@@ -181,6 +181,7 @@ export default function MembersPage() {
 
     return () => {
       mountedRef.current = false;
+
       membersRequestRef.current += 1;
       categoriesRequestRef.current += 1;
       profileRequestRef.current += 1;
@@ -206,16 +207,24 @@ export default function MembersPage() {
 
       if (!isCurrentRequest()) return;
 
-      if (result.ok) {
-        setMembers(result.data.members);
-        setTotal(result.data.total);
-      } else {
+      if (!result.ok) {
         setMembersLoadFailed(true);
         setMessage(result.message);
+        return;
+      }
+
+      setMembers(result.data.members);
+      setTotal(result.data.total);
+
+      const lastPage = Math.max(1, Math.ceil(result.data.total / PAGE_SIZE));
+
+      if (page > lastPage) {
+        setPage(lastPage);
       }
     } catch (error) {
       if (isCurrentRequest()) {
         console.error("Failed to load members:", error);
+
         setMembersLoadFailed(true);
         setMessage("Unable to load members. Please try again.");
       }
@@ -239,14 +248,16 @@ export default function MembersPage() {
 
       if (!isCurrentRequest()) return;
 
-      if (result.ok) {
-        setCategories(result.data);
-      } else {
+      if (!result.ok) {
         setMessage(result.message);
+        return;
       }
+
+      setCategories(result.data);
     } catch (error) {
       if (isCurrentRequest()) {
         console.error("Failed to load categories:", error);
+
         setMessage("Unable to load categories. Please try again.");
       }
     } finally {
@@ -314,7 +325,6 @@ export default function MembersPage() {
       }
 
       if (page !== 1) {
-        // Changing the page triggers a fresh load with page 1.
         setMembersLoading(true);
         setPage(1);
       } else {
@@ -323,6 +333,7 @@ export default function MembersPage() {
     } catch (error) {
       if (mountedRef.current) {
         console.error("Failed to add member:", error);
+
         setMessage(
           "The result could not be confirmed. Check the member list before trying again."
         );
@@ -347,6 +358,7 @@ export default function MembersPage() {
     } catch (error) {
       if (mountedRef.current) {
         console.error("Failed to create category:", error);
+
         setMessage(
           "The result could not be confirmed. Check the category list before trying again."
         );
@@ -355,18 +367,24 @@ export default function MembersPage() {
   };
 
   const handleMemberAction = async (action: string, member: Member) => {
-    if (profileLoadingRef.current) return;
+    if (
+      profileLoadingRef.current ||
+      removingMemberRef.current ||
+      savingEditRef.current
+    ) {
+      return;
+    }
 
     setMessage(null);
 
     if (action === "Remove Member") {
-      if (
-        !confirm(
-          `Remove ${member.name}? This permanently deletes their record.`
-        )
-      ) {
-        return;
-      }
+      const confirmed = window.confirm(
+        `Remove ${member.name}? This permanently deletes their record.`
+      );
+
+      if (!confirmed) return;
+
+      removingMemberRef.current = true;
 
       try {
         const result = await removeMember(member.id);
@@ -387,57 +405,74 @@ export default function MembersPage() {
       } catch (error) {
         if (mountedRef.current) {
           console.error("Failed to remove member:", error);
+
           setMessage(
             "The removal result could not be confirmed. Refresh the list before trying again."
           );
         }
+      } finally {
+        removingMemberRef.current = false;
       }
 
       return;
     }
 
-    if (action === "Edit Member" || action === "View Profile") {
-      const requestId = ++profileRequestRef.current;
+    if (action !== "Edit Member" && action !== "View Profile") {
+      setMessage(`The "${action}" action is not connected yet.`);
+      return;
+    }
 
-      profileLoadingRef.current = true;
-      setProfileLoading(true);
+    const requestId = ++profileRequestRef.current;
 
-      const isCurrentRequest = () =>
-        mountedRef.current && profileRequestRef.current === requestId;
+    profileLoadingRef.current = true;
+    setProfileLoading(true);
 
-      try {
-        const result = await getMemberProfile(member.id);
+    const isCurrentRequest = () =>
+      mountedRef.current && profileRequestRef.current === requestId;
 
-        if (!isCurrentRequest()) return;
+    try {
+      const result = await getMemberProfile(member.id);
 
-        if (!result.ok) {
-          setMessage(result.message);
-          return;
-        }
+      if (!isCurrentRequest()) return;
 
-        setViewMode(action === "View Profile" ? "view" : "edit");
-        setEditing({ id: member.id, data: result.data });
-      } catch (error) {
-        if (isCurrentRequest()) {
-          console.error("Failed to load member profile:", error);
-          setMessage("Unable to load this member profile. Please try again.");
-        }
-      } finally {
-        if (isCurrentRequest()) {
-          profileLoadingRef.current = false;
-          setProfileLoading(false);
-        }
+      if (!result.ok) {
+        setMessage(result.message);
+        return;
+      }
+
+      setViewMode(action === "View Profile" ? "view" : "edit");
+
+      // Keep the complete profile, including subscriptionStatus.
+      setEditing({
+        id: member.id,
+        data: result.data,
+      });
+    } catch (error) {
+      if (isCurrentRequest()) {
+        console.error("Failed to load member profile:", error);
+
+        setMessage("Unable to load this member profile. Please try again.");
+      }
+    } finally {
+      if (isCurrentRequest()) {
+        profileLoadingRef.current = false;
+        setProfileLoading(false);
       }
     }
   };
 
   const handleSaveEdit = async (formData: Partial<MemberFormData>) => {
-    if (!editing) return;
+    if (!editing || viewMode === "view" || savingEditRef.current) {
+      return;
+    }
 
+    const memberId = editing.id;
+
+    savingEditRef.current = true;
     setMessage(null);
 
     try {
-      const result = await updateMember(editing.id, formData);
+      const result = await updateMember(memberId, formData);
 
       if (!mountedRef.current) return;
 
@@ -448,15 +483,26 @@ export default function MembersPage() {
 
       setMembersLoading(true);
       setEditing(null);
+
       await loadMembers();
     } catch (error) {
       if (mountedRef.current) {
         console.error("Failed to update member:", error);
+
         setMessage(
           "The update result could not be confirmed. Check the member record before trying again."
         );
       }
+    } finally {
+      savingEditRef.current = false;
     }
+  };
+
+  const handleCancelEdit = () => {
+    if (savingEditRef.current) return;
+
+    setEditing(null);
+    setMessage(null);
   };
 
   const banner = message && (
@@ -483,10 +529,12 @@ export default function MembersPage() {
         {banner}
 
         <EditMemberPage
+          key={editing.id}
           readOnly={viewMode === "view"}
           initialData={editing.data}
+          subscriptionStatus={editing.data.subscriptionStatus}
           availableCategories={categories.map((category) => category.name)}
-          onCancel={() => setEditing(null)}
+          onCancel={handleCancelEdit}
           onSave={handleSaveEdit}
         />
       </>
@@ -517,7 +565,7 @@ export default function MembersPage() {
               setMessage(null);
               void loadMembers();
             }}
-            className="mt-4 rounded-lg bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+            className="mt-4 cursor-pointer rounded-lg bg-gwc-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
           >
             Try again
           </button>

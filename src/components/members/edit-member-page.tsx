@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
+
 import { ChevronRight, X } from "lucide-react";
+
+type EmailSubscriptionStatus = "SUBSCRIBED" | "UNSUBSCRIBED" | "BOUNCED";
 
 interface EditMemberFormData {
   fullName: string;
@@ -23,39 +26,114 @@ interface EditMemberFormData {
 }
 
 interface EditMemberPageProps {
-  initialData: EditMemberFormData;
+  initialData: EditMemberFormData & {
+    subscriptionStatus?: EmailSubscriptionStatus;
+  };
+  subscriptionStatus?: EmailSubscriptionStatus;
   availableCategories: string[];
   readOnly?: boolean;
   onCancel: () => void;
-  onSave: (data: EditMemberFormData) => void;
+  onSave: (data: Partial<EditMemberFormData>) => void | Promise<void>;
+}
+
+interface FieldInputProps {
+  label: string;
+  required?: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  disabled?: boolean;
+}
+
+interface FieldSelectProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  disabled?: boolean;
+  description?: string;
+}
+
+const fieldClass =
+  "w-full rounded-lg border border-gwc-border/50 bg-gwc-muted-bg px-4 py-3 text-[15px] text-gwc-navy outline-none focus:ring-2 focus:ring-gwc-navy/20 disabled:cursor-default disabled:bg-white disabled:text-gwc-text-body";
+
+const FORM_FIELDS: (keyof EditMemberFormData)[] = [
+  "fullName",
+  "email",
+  "phone",
+  "dateOfBirth",
+  "gender",
+  "streetAddress",
+  "city",
+  "state",
+  "postalCode",
+  "country",
+  "membershipType",
+  "status",
+  "joinDate",
+  "renewalDate",
+  "categories",
+  "notes",
+];
+
+function normalizeStatus(value: string) {
+  const status = value.trim().toLowerCase();
+
+  if (status === "inactive") return "Inactive";
+  if (status === "visitor") return "Visitor";
+
+  return "Active";
+}
+
+function buildInitialForm(initialData: EditMemberFormData): EditMemberFormData {
+  return {
+    fullName: initialData.fullName ?? "",
+    email: initialData.email ?? "",
+    phone: initialData.phone ?? "",
+    dateOfBirth: initialData.dateOfBirth ?? "",
+    gender: initialData.gender ?? "",
+    streetAddress: initialData.streetAddress ?? "",
+    city: initialData.city ?? "",
+    state: initialData.state ?? "",
+    postalCode: initialData.postalCode ?? "",
+    country: initialData.country ?? "",
+    membershipType: initialData.membershipType ?? "",
+    status: normalizeStatus(initialData.status ?? "Active"),
+    joinDate: initialData.joinDate ?? "",
+    renewalDate: initialData.renewalDate ?? "",
+    categories: [...(initialData.categories ?? [])],
+    notes: initialData.notes ?? "",
+  };
 }
 
 function FieldInput({
   label,
-  required,
+  required = false,
   value,
   onChange,
   type = "text",
-  disabled,
-}: {
-  label: string;
-  required?: boolean;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  disabled?: boolean;
-}) {
+  disabled = false,
+}: FieldInputProps) {
+  const id = useId();
+
   return (
-    <div className="flex flex-col gap-1.5 flex-1 min-w-[240px]">
-      <label className="text-[13px] font-semibold text-gwc-text-body tracking-wide">
-        {label} {required && <span className="text-red-600">*</span>}
+    <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:min-w-[240px]">
+      <label
+        htmlFor={id}
+        className="text-[13px] font-semibold tracking-wide text-gwc-text-body"
+      >
+        {label}
+        {required && <span className="ml-1 text-red-600">*</span>}
       </label>
+
       <input
+        id={id}
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        required={required}
         disabled={disabled}
-        className="border border-gwc-border/50 rounded-lg px-4 py-3 text-[15px] text-gwc-navy bg-gwc-muted-bg focus:outline-none focus:ring-2 focus:ring-gwc-navy/20 disabled:bg-white disabled:text-gwc-text-body disabled:cursor-default"
+        onChange={(event) => onChange(event.target.value)}
+        className={fieldClass}
       />
     </div>
   );
@@ -66,31 +144,49 @@ function FieldSelect({
   value,
   onChange,
   options,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-  disabled?: boolean;
-}) {
+  disabled = false,
+  description,
+}: FieldSelectProps) {
+  const id = useId();
+  const descriptionId = `${id}-description`;
+
+  // Preserve existing saved values even when they are not
+  // included in the standard options.
+  const availableOptions = Array.from(
+    new Set([...(value ? [value] : []), ...options])
+  );
+
   return (
-    <div className="flex flex-col gap-1.5 flex-1 min-w-[240px]">
-      <label className="text-[13px] font-semibold text-gwc-text-body tracking-wide">
+    <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:min-w-[240px]">
+      <label
+        htmlFor={id}
+        className="text-[13px] font-semibold tracking-wide text-gwc-text-body"
+      >
         {label}
       </label>
+
       <select
+        id={id}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="border border-gwc-border/50 rounded-lg px-4 py-3 text-[15px] text-gwc-navy bg-gwc-muted-bg focus:outline-none focus:ring-2 focus:ring-gwc-navy/20 disabled:bg-white disabled:text-gwc-text-body disabled:cursor-default"
+        aria-describedby={description ? descriptionId : undefined}
+        onChange={(event) => onChange(event.target.value)}
+        className={fieldClass}
       >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
+        <option value="">Not specified</option>
+
+        {availableOptions.map((option) => (
+          <option key={option} value={option}>
+            {option}
           </option>
         ))}
       </select>
+
+      {description && (
+        <p id={descriptionId} className="text-xs leading-5 text-gwc-text-muted">
+          {description}
+        </p>
+      )}
     </div>
   );
 }
@@ -99,258 +195,386 @@ function SectionHeader({ title }: { title: string }) {
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold text-gwc-navy">{title}</h2>
+
       <div className="h-px bg-gwc-border/30" />
     </div>
   );
 }
 
-export function EditMemberPage({
+function EditMemberForm({
   initialData,
+  subscriptionStatus,
   availableCategories,
   readOnly = false,
   onCancel,
   onSave,
 }: EditMemberPageProps) {
-  const [data, setData] = useState<EditMemberFormData>(initialData);
+  const [baseline] = useState(() => buildInitialForm(initialData));
+
+  const [data, setData] = useState<EditMemberFormData>(() =>
+    buildInitialForm(initialData)
+  );
+
   const [categoryInput, setCategoryInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  const savingRef = useRef(false);
+
+  const categoryListId = useId();
+  const notesId = useId();
+
+  const emailStatus = subscriptionStatus ?? initialData.subscriptionStatus;
+
+  const isUnsubscribed = emailStatus === "UNSUBSCRIBED";
+
+  const disabled = readOnly || saving;
+
+  // Match the directory's display rule without replacing
+  // the stored membership value in form state.
+  const displayedStatus = isUnsubscribed ? "Inactive" : data.status;
 
   const update = <K extends keyof EditMemberFormData>(
     key: K,
     value: EditMemberFormData[K]
   ) => {
-    if (readOnly) return;
-    setData((prev) => ({ ...prev, [key]: value }));
+    if (readOnly || savingRef.current) return;
+
+    setData((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+
+    setSaveError("");
   };
 
   const addCategory = (value: string) => {
-    if (readOnly) return;
+    if (readOnly || savingRef.current) return;
+
     const trimmed = value.trim();
+
     if (trimmed && !data.categories.includes(trimmed)) {
       update("categories", [...data.categories, trimmed]);
     }
+
     setCategoryInput("");
   };
 
   const removeCategory = (value: string) => {
-    if (readOnly) return;
+    if (readOnly || savingRef.current) return;
+
     update(
       "categories",
-      data.categories.filter((c) => c !== value)
+      data.categories.filter((category) => category !== value)
     );
   };
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (readOnly || savingRef.current) return;
+
+    let changes: Partial<EditMemberFormData> = {};
+
+    for (const key of FORM_FIELDS) {
+      // The inactive display override is not a membership edit.
+      // Do not submit status while an unsubscribe overrides it.
+      if (key === "status" && isUnsubscribed) {
+        continue;
+      }
+
+      const changed =
+        key === "categories"
+          ? JSON.stringify(data.categories) !==
+            JSON.stringify(baseline.categories)
+          : data[key] !== baseline[key];
+
+      if (changed) {
+        changes = {
+          ...changes,
+          [key]: data[key],
+        };
+      }
+    }
+
+    savingRef.current = true;
+    setSaving(true);
+    setSaveError("");
+
+    try {
+      await onSave(changes);
+    } catch {
+      setSaveError(
+        "The save result could not be confirmed. Check the member record before trying again."
+      );
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
+
+  function input(
+    key: Exclude<keyof EditMemberFormData, "categories">,
+    label: string,
+    type = "text",
+    required = false
+  ) {
+    return (
+      <FieldInput
+        label={label}
+        type={type}
+        required={required}
+        value={data[key]}
+        onChange={(value) => update(key, value)}
+        disabled={disabled}
+      />
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-8 max-w-[936px]">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-1.5 text-[13px] text-gwc-text-muted">
+    <div className="flex max-w-[936px] flex-col gap-8">
+      <header className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 text-[13px] text-gwc-text-muted">
           <span>Members</span>
-          <ChevronRight className="h-2.5 w-2.5" />
+
+          <ChevronRight aria-hidden="true" className="h-2.5 w-2.5" />
+
           <span>{initialData.fullName}</span>
-          <ChevronRight className="h-2.5 w-2.5" />
-          <span className="text-gwc-navy font-medium">
+
+          <ChevronRight aria-hidden="true" className="h-2.5 w-2.5" />
+
+          <span className="font-medium text-gwc-navy">
             {readOnly ? "View Profile" : "Edit Record"}
           </span>
         </div>
-        <h1 className="text-[32px] font-semibold text-gwc-navy tracking-tight">
+
+        <h1 className="text-[32px] font-semibold tracking-tight text-gwc-navy">
           {readOnly ? "Member Profile" : "Edit Member Profile"}
         </h1>
-      </div>
+      </header>
 
-      <div className="bg-white rounded-xl shadow-sm p-8 flex flex-col gap-10">
-        <div className="flex flex-col gap-6">
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-10 rounded-xl bg-white p-5 shadow-sm sm:p-8"
+      >
+        <section className="flex flex-col gap-6">
           <SectionHeader title="Personal Information" />
-          <div className="flex gap-6 flex-wrap">
-            <FieldInput
-              label="Full Name"
-              required
-              value={data.fullName}
-              onChange={(v) => update("fullName", v)}
-              disabled={readOnly}
-            />
-            <FieldInput
-              label="Email Address"
-              required
-              type="email"
-              value={data.email}
-              onChange={(v) => update("email", v)}
-              disabled={readOnly}
-            />
+
+          <div className="flex flex-wrap gap-6">
+            {input("fullName", "Full Name", "text", true)}
+
+            {input("email", "Email Address", "email", true)}
           </div>
-          <div className="flex gap-6 flex-wrap">
-            <FieldInput
-              label="Phone Number"
-              value={data.phone}
-              onChange={(v) => update("phone", v)}
-              disabled={readOnly}
-            />
-            <FieldInput
-              label="Date of Birth"
-              type="date"
-              value={data.dateOfBirth}
-              onChange={(v) => update("dateOfBirth", v)}
-              disabled={readOnly}
-            />
+
+          <div className="flex flex-wrap gap-6">
+            {input("phone", "Phone Number", "tel")}
+
+            {input("dateOfBirth", "Date of Birth", "date")}
+
             <FieldSelect
               label="Gender"
               value={data.gender}
-              onChange={(v) => update("gender", v)}
+              onChange={(value) => update("gender", value)}
               options={["Female", "Male", "Prefer not to say"]}
-              disabled={readOnly}
+              disabled={disabled}
             />
           </div>
-        </div>
+        </section>
 
-        <div className="flex flex-col gap-6">
+        <section className="flex flex-col gap-6">
           <SectionHeader title="Residential Address" />
-          <div className="flex gap-6 flex-wrap">
-            <FieldInput
-              label="Street Address"
-              value={data.streetAddress}
-              onChange={(v) => update("streetAddress", v)}
-              disabled={readOnly}
-            />
-            <FieldInput
-              label="City"
-              value={data.city}
-              onChange={(v) => update("city", v)}
-              disabled={readOnly}
-            />
+
+          <div className="flex flex-wrap gap-6">
+            {input("streetAddress", "Street Address")}
+            {input("city", "City")}
           </div>
-          <div className="flex gap-6 flex-wrap">
-            <FieldInput
-              label="State / Region"
-              value={data.state}
-              onChange={(v) => update("state", v)}
-              disabled={readOnly}
-            />
-            <FieldInput
-              label="Postal Code"
-              value={data.postalCode}
-              onChange={(v) => update("postalCode", v)}
-              disabled={readOnly}
-            />
+
+          <div className="flex flex-wrap gap-6">
+            {input("state", "State / Region")}
+            {input("postalCode", "Postal Code")}
+
             <FieldSelect
               label="Country"
               value={data.country}
-              onChange={(v) => update("country", v)}
+              onChange={(value) => update("country", value)}
               options={["United States", "Canada", "United Kingdom", "Other"]}
-              disabled={readOnly}
+              disabled={disabled}
             />
           </div>
-        </div>
+        </section>
 
-        <div className="flex flex-col gap-6">
+        <section className="flex flex-col gap-6">
           <SectionHeader title="Membership Details" />
-          <div className="flex gap-6 flex-wrap">
+
+          <div className="flex flex-wrap gap-6">
             <FieldSelect
               label="Membership Type"
               value={data.membershipType}
-              onChange={(v) => update("membershipType", v)}
+              onChange={(value) => update("membershipType", value)}
               options={["Regular Member", "Associate Member", "Visitor"]}
-              disabled={readOnly}
+              disabled={disabled}
             />
+
             <FieldSelect
               label="Status"
-              value={data.status}
-              onChange={(v) => update("status", v)}
+              value={displayedStatus}
+              onChange={(value) => {
+                if (isUnsubscribed) return;
+
+                update("status", value);
+              }}
               options={["Active", "Inactive", "Visitor"]}
-              disabled={readOnly}
-            />
-          </div>
-          <div className="flex gap-6 flex-wrap">
-            <FieldInput
-              label="Join Date"
-              type="date"
-              value={data.joinDate}
-              onChange={(v) => update("joinDate", v)}
-              disabled={readOnly}
-            />
-            <FieldInput
-              label="Renewal Date"
-              type="date"
-              value={data.renewalDate}
-              onChange={(v) => update("renewalDate", v)}
-              disabled={readOnly}
+              disabled={disabled || isUnsubscribed}
+              description={
+                isUnsubscribed
+                  ? `Shown as Inactive because this member unsubscribed from newsletters. Stored church membership: ${data.status}. Editing this profile will not resubscribe them.`
+                  : undefined
+              }
             />
           </div>
 
+          <div className="flex flex-wrap gap-6">
+            {input("joinDate", "Join Date", "date")}
+
+            {input("renewalDate", "Renewal Date", "date")}
+          </div>
+
           <div className="flex flex-col gap-3">
-            <label className="text-[13px] font-semibold text-gwc-text-body">
-              Assigned Categories & Ministry Groups
+            <label
+              htmlFor={categoryListId}
+              className="text-[13px] font-semibold text-gwc-text-body"
+            >
+              Assigned Categories &amp; Ministry Groups
             </label>
-            <div className="flex flex-wrap gap-2 items-center">
-              {data.categories.map((c) => (
+
+            <div className="flex flex-wrap items-center gap-2">
+              {data.categories.map((category) => (
                 <span
-                  key={c}
-                  className="flex items-center gap-1 bg-gwc-muted-bg border border-gwc-border/50 text-gwc-text-body text-[13px] font-semibold px-3 py-1.5 rounded-md"
+                  key={category}
+                  className="flex items-center gap-1 rounded-md border border-gwc-border/50 bg-gwc-muted-bg px-3 py-1.5 text-[13px] font-semibold text-gwc-text-body"
                 >
-                  {c}
+                  {category}
+
                   {!readOnly && (
-                    <button onClick={() => removeCategory(c)}>
-                      <X className="h-2.5 w-2.5" />
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => removeCategory(category)}
+                      aria-label={`Remove ${category} category`}
+                      className="rounded p-1 disabled:opacity-50"
+                    >
+                      <X aria-hidden="true" className="h-2.5 w-2.5" />
                     </button>
                   )}
                 </span>
               ))}
+
               {!readOnly && (
                 <>
                   <input
+                    id={categoryListId}
                     value={categoryInput}
-                    onChange={(e) => setCategoryInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
+                    disabled={saving}
+                    onChange={(event) => setCategoryInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
                         addCategory(categoryInput);
                       }
                     }}
-                    list="edit-member-categories"
+                    list={`${categoryListId}-options`}
                     placeholder="Add Category +"
-                    className="border border-dashed border-gwc-border/50 text-gwc-text-body text-[13px] font-semibold px-3 py-1.5 rounded-md bg-gwc-muted-bg/50 focus:outline-none w-40"
+                    className="w-40 rounded-md border border-dashed border-gwc-border/50 bg-gwc-muted-bg/50 px-3 py-1.5 text-[13px] font-semibold text-gwc-text-body outline-none disabled:opacity-50"
                   />
-                  <datalist id="edit-member-categories">
-                    {availableCategories.map((c) => (
-                      <option key={c} value={c} />
-                    ))}
+
+                  <datalist id={`${categoryListId}-options`}>
+                    {Array.from(new Set(availableCategories)).map(
+                      (category) => (
+                        <option key={category} value={category} />
+                      )
+                    )}
                   </datalist>
+
+                  <button
+                    type="button"
+                    disabled={saving || !categoryInput.trim()}
+                    onClick={() => addCategory(categoryInput)}
+                    className="rounded-md border border-gwc-border/50 px-3 py-1.5 text-xs font-semibold text-gwc-navy disabled:opacity-50"
+                  >
+                    Add
+                  </button>
                 </>
+              )}
+
+              {readOnly && data.categories.length === 0 && (
+                <span className="text-sm text-gwc-text-muted">
+                  No categories assigned.
+                </span>
               )}
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="flex flex-col gap-6">
+        <section className="flex flex-col gap-6">
           <SectionHeader title="Internal Ministry Notes" />
+
           <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-semibold text-gwc-text-body">
+            <label
+              htmlFor={notesId}
+              className="text-[13px] font-semibold text-gwc-text-body"
+            >
               Comments / Pastoral Notes
             </label>
+
             <textarea
+              id={notesId}
               value={data.notes}
-              onChange={(e) => update("notes", e.target.value)}
+              onChange={(event) => update("notes", event.target.value)}
               rows={4}
-              disabled={readOnly}
-              className="border border-gwc-border/50 rounded-lg px-4 py-4 text-[15px] text-gwc-navy bg-gwc-muted-bg resize-none focus:outline-none focus:ring-2 focus:ring-gwc-navy/20 disabled:bg-white disabled:text-gwc-text-body disabled:cursor-default"
+              disabled={disabled}
+              className={`${fieldClass} resize-none py-4`}
             />
           </div>
-        </div>
+        </section>
 
-        <div className="flex items-center justify-end gap-4 border-t border-gwc-border/30 pt-6">
+        {saveError && (
+          <p
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {saveError}
+          </p>
+        )}
+
+        <footer className="flex flex-wrap items-center justify-end gap-4 border-t border-gwc-border/30 pt-6">
           <button
+            type="button"
             onClick={onCancel}
-            className="px-6 py-3 rounded-lg text-sm font-semibold text-gwc-text-body border border-gwc-border/50 hover:bg-gwc-muted-bg"
+            disabled={saving}
+            className="rounded-lg border border-gwc-border/50 px-6 py-3 text-sm font-semibold text-gwc-text-body hover:bg-gwc-muted-bg disabled:opacity-50"
           >
             {readOnly ? "Close" : "Cancel"}
           </button>
+
           {!readOnly && (
             <button
-              onClick={() => onSave(data)}
-              className="px-6 py-3 rounded-lg text-sm font-semibold bg-gwc-navy text-white hover:brightness-110"
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-gwc-navy px-6 py-3 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Save Changes
+              {saving ? "Saving…" : "Save Changes"}
             </button>
           )}
-        </div>
-      </div>
+        </footer>
+      </form>
     </div>
   );
+}
+
+export function EditMemberPage(props: EditMemberPageProps) {
+  // New initial profile data resets the form.
+  // A subscription-only refresh leaves form edits intact.
+  const formKey = JSON.stringify(buildInitialForm(props.initialData));
+
+  return <EditMemberForm key={formKey} {...props} />;
 }
