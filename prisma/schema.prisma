@@ -194,13 +194,14 @@ model PrivacyEvent {
 }
 
 model Group {
-  id          String            @id @default(cuid())
-  name        String            @unique
-  description String?           @db.Text
-  color       String?
-  createdAt   DateTime          @default(now())
-  members     MemberGroup[]
-  newsletters NewsletterGroup[]
+  id             String            @id @default(cuid())
+  name           String            @unique
+  description    String?           @db.Text
+  color          String?
+  isPublicSignup Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  members        MemberGroup[]
+  newsletters    NewsletterGroup[]
 }
 
 model MemberGroup {

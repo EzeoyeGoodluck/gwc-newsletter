@@ -6,13 +6,25 @@ import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
 import { joinChurch } from "../../app/register-member/actions";
 
+type JoinCategory = {
+  id: string;
+  name: string;
+};
+
+type JoinFormProps = {
+  categories?: JoinCategory[];
+};
+
 const inputClass =
   "mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-[#002B3D] outline-none focus:border-[#002B3D] focus:ring-2 focus:ring-[#002B3D]/10 disabled:opacity-60";
 
-export function JoinForm() {
+export function JoinForm({ categories = [] }: JoinFormProps) {
   const [pending, setPending] = useState(false);
+
   const [success, setSuccess] = useState(false);
+
   const [error, setError] = useState("");
+
   const [challengeToken, setChallengeToken] = useState("");
 
   const pendingRef = useRef(false);
@@ -40,7 +52,6 @@ export function JoinForm() {
       return;
     }
 
-    // Capture the values before disabling the inputs.
     const formData = new FormData(event.currentTarget);
 
     formData.set("turnstileToken", challengeToken);
@@ -85,13 +96,13 @@ export function JoinForm() {
         </h2>
 
         <p className="mt-3 text-sm leading-7 text-slate-700">
-          Your request has been processed. New contact details are added for our
-          church team to review.
+          Your request has been processed. For new registrations, we save your
+          contact details and any categories you selected.
         </p>
 
         <p className="mt-3 text-sm leading-7 text-slate-700">
-          If this email is already registered, its existing details and
-          newsletter preferences remain unchanged. Please contact the church
+          If this email is already registered, its existing details, categories,
+          and newsletter preferences remain unchanged. Please contact the church
           team to update them.
         </p>
       </div>
@@ -163,6 +174,54 @@ export function JoinForm() {
         />
       </div>
 
+      <fieldset
+        disabled={pending}
+        aria-describedby="join-categories-help"
+        className="rounded-2xl border border-slate-200 p-4"
+      >
+        <legend className="px-1 text-sm font-semibold text-[#002B3D]">
+          Choose your categories
+        </legend>
+
+        <p
+          id="join-categories-help"
+          className="text-sm leading-6 text-slate-600"
+        >
+          Select the categories you would like to join. You can choose more than
+          one, or leave them unchecked if you are not sure yet.
+        </p>
+
+        {categories.length > 0 ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {categories.map((category) => (
+              <label
+                key={category.id}
+                className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-[#002B3D]"
+              >
+                <input
+                  name="categoryIds"
+                  type="checkbox"
+                  value={category.id}
+                  className="mt-1 h-4 w-4 shrink-0 accent-[#002B3D]"
+                />
+
+                <span>{category.name}</span>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            No categories are currently available for public selection. You can
+            still complete your registration.
+          </p>
+        )}
+
+        <p className="mt-3 text-xs leading-5 text-slate-500">
+          Categories are only added when you select them. Category selection
+          does not subscribe you to newsletter emails.
+        </p>
+      </fieldset>
+
       <div
         aria-hidden="true"
         className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden"
@@ -188,8 +247,9 @@ export function JoinForm() {
         />
 
         <span>
-          I agree that Glory Worship Church may store and use these details to
-          manage my church contact record and respond to this request.
+          I agree that Glory Worship Church may store and use these details and
+          my category selections to manage my church contact record and respond
+          to this request.
         </span>
       </label>
 
@@ -263,7 +323,8 @@ export function JoinForm() {
 
       <p className="text-xs leading-6 text-slate-500">
         Submitting this form creates a contact request, not a staff login or
-        automatic approval of church membership. Newsletter signup is optional.
+        automatic approval of church membership. Category selection and
+        newsletter signup are optional.
       </p>
     </form>
   );
